@@ -1,0 +1,7 @@
+ApiError: {"error":{"code":503,"message":"This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.","status":"UNAVAILABLE"}}
+    at throwErrorIfNotOK (file:///C:/Users/Infinity/Desktop/ai-interview-copilot/backend/node_modules/@google/genai/dist/node/index.mjs:13393:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async file:///C:/Users/Infinity/Desktop/ai-interview-copilot/backend/node_modules/@google/genai/dist/node/index.mjs:13096:13
+    at async Models.generateContent (file:///C:/Users/Infinity/Desktop/ai-interview-copilot/backend/node_modules/@google/genai/dist/node/index.mjs:14501:24)
+    at async generateInterviewQuestions (file:///C:/Users/Infinity/Desktop/ai-interview-copilot/backend/services/aiService.js:20:22)
+    at async createInterview (file:///C:/Users/Infinity/Desktop/ai-interview-copilot/backend/controllers/interviewController.js:8:23)
