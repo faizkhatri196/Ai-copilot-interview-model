@@ -18,7 +18,7 @@ export const generateInterviewQuestions = async (role, difficulty) => {
     ]`;
 
     const response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-1.5-pro',
         contents: prompt,
     });
     
@@ -50,7 +50,7 @@ export const evaluateAnswer = async (question, answer, role) => {
     }`;
 
     const response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-1.5-pro',
         contents: prompt,
     });
     
