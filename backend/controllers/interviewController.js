@@ -16,6 +16,7 @@ export const createInterview = async (req, res) => {
 
     res.status(201).json(interview);
   } catch (error) {
+    import('fs').then(fs => fs.writeFileSync('full_error.txt', error.toString() + '\\n' + error.stack));
     res.status(500).json({ message: error.message });
   }
 };
