@@ -1,0 +1,10 @@
+{
+  "name": "ai-interview-copilot-root",
+  "version": "1.0.0",
+  "description": "Root configuration for AI Interview Copilot",
+  "private": true,
+  "scripts": {
+    "build": "cd backend && npm install",
+    "start": "cd backend && npm start"
+  }
+}
