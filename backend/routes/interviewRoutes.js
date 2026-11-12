@@ -1,5 +1,10 @@
 import express from 'express';
-import { createInterview, getInterviewHistory, getInterviewById } from '../controllers/interviewController.js';
+import {
+  createInterview,
+  getInterviewHistory,
+  getInterviewById,
+  submitInterviewAnswer,
+} from '../controllers/interviewController.js';
 import { protect } from '../middlewares/authMiddleware.js';
 
 const router = express.Router();
@@ -7,5 +12,6 @@ const router = express.Router();
 router.post('/create', protect, createInterview);
 router.get('/history', protect, getInterviewHistory);
 router.get('/:id', protect, getInterviewById);
+router.post('/:id/submit', protect, submitInterviewAnswer);
 
 export default router;

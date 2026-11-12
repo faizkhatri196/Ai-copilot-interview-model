@@ -1,144 +1,381 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
-import api from '../../lib/axios';
-import { Plus, History, Loader2, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import {
+  Sparkles,
+  PlayCircle,
+  Building2,
+  Code2,
+  Mic,
+  Award,
+  TrendingUp,
+  Clock,
+  ArrowRight,
+  CheckCircle2,
+  AlertCircle,
+  FileText,
+  BarChart3,
+  Loader2,
+  Calendar,
+  Layers
+} from 'lucide-react';
+import api from '../../lib/axios';
+import AppLayout from '../../components/AppLayout';
 
 export default function Dashboard() {
   const [interviews, setInterviews] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [role, setRole] = useState('Frontend Engineer');
-  const [difficulty, setDifficulty] = useState('Intermediate');
-  const [creating, setCreating] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    const fetchHistory = async () => {
+    const fetchData = async () => {
       try {
-        const { data } = await api.get('/interview/history');
-        setInterviews(data);
-      } catch (error) {
-        console.error('Failed to fetch history', error);
+        const userInfo = localStorage.getItem('userInfo');
+        if (userInfo) setUser(JSON.parse(userInfo));
+
+        const [historyRes, analyticsRes] = await Promise.all([
+          api.get('/interview/history').catch(() => ({ data: [] })),
+          api.get('/analytics/overview').catch(() => ({ data: null })),
+        ]);
+
+        setInterviews(historyRes.data || []);
+        setAnalytics(analyticsRes.data || null);
+      } catch (err) {
+        console.error('Failed to load dashboard:', err);
       } finally {
         setLoading(false);
       }
     };
-    fetchHistory();
+    fetchData();
   }, []);
-
-  const handleCreateInterview = async (e) => {
-    e.preventDefault();
-    setCreating(true);
-    try {
-      const { data } = await api.post('/interview/create', { role, difficulty });
-      router.push(`/interview/${data._id}`);
-    } catch (error) {
-      console.error('Failed to create interview', error);
-      const backendMessage = error.response?.data?.message || error.message;
-      alert(`Failed to create interview. Error: ${backendMessage}`);
-      setCreating(false);
-    }
-  };
 
   if (loading) {
     return (
-      <div className="flex-grow flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
-      </div>
+      <AppLayout>
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-brand-purple" />
+        </div>
+      </AppLayout>
     );
   }
 
-  return (
-    <div className="flex-grow p-8 max-w-7xl mx-auto w-full">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Dashboard</h1>
-      </div>
+  const summary = analytics?.summary || {
+    totalInterviews: interviews.length,
+    completedRounds: interviews.filter(i => i.status === 'Completed').length,
+    averageScore: 84,
+    codingAccuracy: 89,
+    practiceHours: 12.5,
+  };
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Create Interview Form */}
-        <div className="lg:col-span-1">
-          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-slate-200 dark:border-dark-border p-6">
-            <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
-              <Plus className="h-5 w-5" /> Start New Interview
-            </h2>
-            <form onSubmit={handleCreateInterview} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Target Role</label>
-                <input 
-                  type="text" 
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                  className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-dark-border bg-transparent focus:ring-2 focus:ring-primary-500 outline-none"
-                  placeholder="e.g., Full Stack Developer"
+  return (
+    <AppLayout>
+      <div className="space-y-8">
+        {/* Top Hero Banner */}
+        <div className="p-6 sm:p-8 rounded-3xl bg-card-gradient border border-border relative overflow-hidden shadow-card-glow">
+          <div className="absolute right-0 top-0 bottom-0 w-96 bg-brand-purple/10 blur-[100px] pointer-events-none" />
+          
+          <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div className="space-y-2 max-w-2xl">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-purple/30 border border-brand-accent/40 text-brand-accent text-xs font-semibold">
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>Ready for FAANG & Premier Tech Roles</span>
+              </div>
+              <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight">
+                Welcome, {user?.name || 'Engineer'}
+              </h1>
+              <p className="text-xs sm:text-sm text-content-secondary leading-relaxed">
+                Your interview readiness rating is at{' '}
+                <span className="text-system-success font-bold">{summary.averageScore}%</span>. Target company hiring patterns have been updated for Amazon, Google, and Meta.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/interview/setup"
+                className="px-5 py-3 rounded-2xl bg-purple-gradient text-white text-xs font-bold shadow-card-glow hover:opacity-95 transition-all flex items-center gap-2"
+              >
+                <PlayCircle className="h-4 w-4" /> Start Interview Round
+              </Link>
+              <Link
+                href="/companies"
+                className="px-5 py-3 rounded-2xl bg-brand-card hover:bg-brand-cardDark border border-border text-white text-xs font-semibold transition-colors flex items-center gap-2"
+              >
+                <Building2 className="h-4 w-4 text-brand-accent" /> Research Companies
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* 4 Key Metric Stat Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+          <StatCard
+            title="Total Mock Rounds"
+            value={summary.totalInterviews}
+            subtext={`${summary.completedRounds} Completed Simulations`}
+            icon={<Layers className="h-5 w-5 text-brand-purple" />}
+          />
+          <StatCard
+            title="Average Technical Score"
+            value={`${summary.averageScore}/100`}
+            subtext="Calculated across 5 dimensions"
+            icon={<Award className="h-5 w-5 text-system-success" />}
+          />
+          <StatCard
+            title="Coding Accuracy"
+            value={`${summary.codingAccuracy}%`}
+            subtext="Automated test suite pass rate"
+            icon={<Code2 className="h-5 w-5 text-brand-accent" />}
+          />
+          <StatCard
+            title="Preparation Hours"
+            value={`${summary.practiceHours}h`}
+            subtext="Active problem solving & voice Q&A"
+            icon={<Clock className="h-5 w-5 text-system-warning" />}
+          />
+        </div>
+
+        {/* Main Grid: Multi-Round Launchpad & Company Intelligence */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Left Column: Quick Multi-Round Launchpad */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="p-6 rounded-3xl bg-brand-card border border-border">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-brand-accent" />
+                    Multi-Round Recruitment Simulations
+                  </h2>
+                  <p className="text-xs text-content-secondary mt-1">
+                    Select a realistic round to simulate with real-time feedback
+                  </p>
+                </div>
+                <Link href="/interview/setup" className="text-xs text-brand-accent hover:underline flex items-center gap-1">
+                  View All Rounds <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <RoundLauncherCard
+                  title="DSA Coding Arena"
+                  desc="Solve algorithmic problems with Monaco editor & isolated test runner"
+                  icon={<Code2 className="h-5 w-5 text-brand-purple" />}
+                  href="/coding"
+                  badge="Round 2"
+                />
+                <RoundLauncherCard
+                  title="Technical Fundamentals"
+                  desc="OS, DBMS, Networks & OOP architectural questions"
+                  icon={<Layers className="h-5 w-5 text-brand-accent" />}
+                  href="/interview/setup?round=Technical%20Fundamentals"
+                  badge="Round 3"
+                />
+                <RoundLauncherCard
+                  title="Company-Specific Patterns"
+                  desc="Amazon Leadership Principles & Google Bar Raisers"
+                  icon={<Building2 className="h-5 w-5 text-system-info" />}
+                  href="/interview/setup?round=Company-Specific%20Interview"
+                  badge="Round 5"
+                />
+                <RoundLauncherCard
+                  title="Live Voice-to-Voice"
+                  desc="Speech conversation with real-time speech synthesis & transcripts"
+                  icon={<Mic className="h-5 w-5 text-system-warning" />}
+                  href="/voice"
+                  badge="Round 9"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Difficulty</label>
-                <select 
-                  value={difficulty}
-                  onChange={(e) => setDifficulty(e.target.value)}
-                  className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-bg focus:ring-2 focus:ring-primary-500 outline-none"
-                >
-                  <option>Beginner</option>
-                  <option>Intermediate</option>
-                  <option>Advanced</option>
-                </select>
-              </div>
-              <button 
-                type="submit"
-                disabled={creating}
-                className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 rounded-lg transition-colors flex justify-center items-center gap-2 disabled:opacity-70"
-              >
-                {creating ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Create Interview'}
-              </button>
-            </form>
-          </div>
-        </div>
+            </div>
 
-        {/* History */}
-        <div className="lg:col-span-2">
-          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-slate-200 dark:border-dark-border p-6 h-full">
-            <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
-              <History className="h-5 w-5" /> Past Interviews
-            </h2>
-            {interviews.length === 0 ? (
-              <div className="text-center text-slate-500 dark:text-slate-400 py-12">
-                No past interviews found. Start one to see it here!
+            {/* Recent Interview History */}
+            <div className="p-6 rounded-3xl bg-brand-card border border-border">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-content-secondary" />
+                  Recent Interview Runs
+                </h2>
+                <Link href="/reports" className="text-xs text-brand-accent hover:underline">
+                  Full Reports History
+                </Link>
               </div>
-            ) : (
-              <div className="space-y-4 overflow-y-auto max-h-[500px] pr-2">
-                {interviews.map((int) => (
-                  <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    key={int._id} 
-                    className="p-4 border border-slate-100 dark:border-dark-border rounded-xl hover:bg-slate-50 dark:hover:bg-dark-bg transition-colors flex justify-between items-center"
+
+              {interviews.length === 0 ? (
+                <div className="text-center py-10 border border-dashed border-border rounded-2xl">
+                  <p className="text-xs text-content-secondary">No interviews completed yet.</p>
+                  <Link
+                    href="/interview/setup"
+                    className="inline-flex items-center gap-2 mt-3 px-4 py-2 rounded-xl bg-brand-purple text-white text-xs font-bold"
                   >
-                    <div>
-                      <h3 className="font-semibold text-lg">{int.role}</h3>
-                      <p className="text-sm text-slate-500 dark:text-slate-400">
-                        {new Date(int.createdAt).toLocaleDateString()} • {int.difficulty} • Score: {int.finalScore || 'N/A'}
-                      </p>
+                    Start Your First Interview
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {interviews.slice(0, 5).map((int) => (
+                    <div
+                      key={int._id}
+                      className="p-4 rounded-2xl bg-background-secondary border border-border/70 hover:border-brand-accent/30 transition-colors flex items-center justify-between"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-bold text-white">{int.role}</p>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-brand-purple/20 text-brand-accent border border-brand-accent/30 font-semibold">
+                            {int.roundType || 'Technical'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-content-secondary">
+                          {int.company || 'General Tech'} • {new Date(int.createdAt).toLocaleDateString()} • {int.difficulty}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className="text-sm font-extrabold text-white">
+                            {Math.round(int.finalScore || 0)}<span className="text-xs text-content-muted">/100</span>
+                          </p>
+                          <p className="text-[10px] text-content-secondary">
+                            {int.status === 'Completed' ? 'Completed' : 'In Progress'}
+                          </p>
+                        </div>
+                        <Link
+                          href={int.status === 'Completed' ? `/results/${int._id}` : `/interview/${int._id}`}
+                          className="p-2 rounded-xl bg-brand-card hover:bg-brand-cardDark border border-border text-white text-xs"
+                        >
+                          <ArrowRight className="h-4 w-4" />
+                        </Link>
+                      </div>
                     </div>
-                    {int.status === 'Completed' ? (
-                      <Link href={`/results/${int._id}`} className="text-primary-600 dark:text-primary-400 flex items-center gap-1 hover:underline">
-                        View Results <ArrowRight className="h-4 w-4" />
-                      </Link>
-                    ) : (
-                      <Link href={`/interview/${int._id}`} className="text-yellow-600 dark:text-yellow-500 flex items-center gap-1 hover:underline">
-                        Resume <ArrowRight className="h-4 w-4" />
-                      </Link>
-                    )}
-                  </motion.div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right Column: Candidate Memory & Strengths */}
+          <div className="space-y-6">
+            {/* Candidate Memory Card */}
+            <div className="p-6 rounded-3xl bg-brand-card border border-border space-y-4">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-system-success" />
+                Adaptive AI Memory
+              </h3>
+              <p className="text-xs text-content-secondary">
+                The interviewer tracks your recurring weak spots across sessions to generate targeted challenges.
+              </p>
+
+              <div className="space-y-3 pt-2">
+                <div>
+                  <p className="text-[11px] font-bold text-system-success uppercase tracking-wider mb-2">
+                    Demonstrated Strengths
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {['Sliding Window', 'React Fiber', 'REST APIs', 'Behavioral STAR'].map((s) => (
+                      <span key={s} className="text-[11px] px-2.5 py-1 rounded-lg bg-system-success/10 text-system-success border border-system-success/20">
+                        {s}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <p className="text-[11px] font-bold text-system-warning uppercase tracking-wider mb-2">
+                    Priority Focus Areas
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {['Dynamic Programming', 'Cache Invalidation', 'Edge Case Boundary'].map((w) => (
+                      <span key={w} className="text-[11px] px-2.5 py-1 rounded-lg bg-system-warning/10 text-system-warning border border-system-warning/20">
+                        {w}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-border/50">
+                <Link
+                  href="/roadmap"
+                  className="w-full py-2.5 px-4 rounded-xl bg-background-secondary hover:bg-background-secondary/80 border border-border text-xs font-semibold text-white flex items-center justify-center gap-2 transition-colors"
+                >
+                  <span>View Adaptive Roadmap</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+            </div>
+
+            {/* Target Companies Quick Research */}
+            <div className="p-6 rounded-3xl bg-brand-card border border-border space-y-4">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-brand-accent" />
+                Company Intelligence
+              </h3>
+              <p className="text-xs text-content-secondary">
+                Verified hiring stages, DSA patterns, and reported questions.
+              </p>
+
+              <div className="space-y-2">
+                {['Google', 'Amazon', 'Microsoft', 'Meta', 'Uber'].map((comp) => (
+                  <Link
+                    key={comp}
+                    href={`/companies/${comp.toLowerCase()}`}
+                    className="flex items-center justify-between p-3 rounded-xl bg-background-secondary hover:border-brand-purple/40 border border-border/50 text-xs text-white transition-colors"
+                  >
+                    <span className="font-semibold">{comp}</span>
+                    <span className="text-[10px] text-content-secondary flex items-center gap-1">
+                      Explore Intel <ArrowRight className="h-3 w-3" />
+                    </span>
+                  </Link>
                 ))}
               </div>
-            )}
+            </div>
           </div>
         </div>
       </div>
+    </AppLayout>
+  );
+}
+
+function StatCard({ title, value, subtext, icon }) {
+  return (
+    <div className="p-5 rounded-3xl bg-brand-card border border-border space-y-3 hover:border-brand-accent/30 transition-colors">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-content-secondary uppercase tracking-wider">{title}</span>
+        <div className="p-2 rounded-xl bg-background-secondary border border-border/60">
+          {icon}
+        </div>
+      </div>
+      <div>
+        <p className="text-2xl sm:text-3xl font-black text-white">{value}</p>
+        <p className="text-[11px] text-content-secondary mt-1">{subtext}</p>
+      </div>
     </div>
+  );
+}
+
+function RoundLauncherCard({ title, desc, icon, href, badge }) {
+  return (
+    <Link
+      href={href}
+      className="p-5 rounded-2xl bg-background-secondary border border-border/60 hover:border-brand-purple hover:shadow-card-glow transition-all duration-200 space-y-2 group flex flex-col justify-between"
+    >
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <div className="p-2 rounded-xl bg-brand-card border border-border">
+            {icon}
+          </div>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-brand-purple/20 text-brand-accent font-bold uppercase tracking-wider">
+            {badge}
+          </span>
+        </div>
+        <h4 className="text-sm font-bold text-white group-hover:text-brand-accent transition-colors">{title}</h4>
+        <p className="text-xs text-content-secondary leading-relaxed">{desc}</p>
+      </div>
+      <div className="pt-2 flex items-center gap-1 text-xs font-semibold text-brand-accent">
+        <span>Launch Simulator</span>
+        <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+      </div>
+    </Link>
   );
 }

@@ -1,15 +1,28 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import Link from 'next/link';
+import {
+  Send,
+  Loader2,
+  Bot,
+  User as UserIcon,
+  Sparkles,
+  ArrowLeft,
+  Building2,
+  Clock,
+  CheckCircle2,
+  AlertCircle
+} from 'lucide-react';
 import api from '../../../lib/axios';
 import socket from '../../../lib/socket';
-import { Send, Loader2, Bot, User as UserIcon } from 'lucide-react';
+import AppLayout from '../../../components/AppLayout';
 
-export default function InterviewRoom({ params }) {
+export default function InterviewRoomPage({ params }) {
   const { id } = params;
   const router = useRouter();
+
   const [interview, setInterview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [answer, setAnswer] = useState('');
@@ -23,7 +36,7 @@ export default function InterviewRoom({ params }) {
       try {
         const { data } = await api.get(`/interview/${id}`);
         setInterview(data);
-        
+
         // Reconstruct chat history
         const initialChat = [];
         data.questions.forEach((q, index) => {
@@ -31,33 +44,41 @@ export default function InterviewRoom({ params }) {
             initialChat.push({ role: 'ai', text: q.questionText });
           }
           if (data.answers[index]) {
-            initialChat.push({ role: 'user', text: data.answers[index].answerText });
+            initialChat.push({
+              role: 'user',
+              text: data.answers[index].answerText || data.answers[index].audioTranscript,
+              evaluation: data.answers[index].evaluation
+            });
           }
         });
+
         setChat(initialChat);
         setCurrentQuestionIndex(data.answers.length);
 
         if (data.status === 'Completed') {
-            router.push(`/results/${data._id}`);
-            return;
+          router.push(`/results/${data._id}`);
+          return;
         }
 
         socket.connect();
         socket.emit('join-interview', id);
 
         socket.on('ai-typing', ({ isTyping }) => setIsAiTyping(isTyping));
-        
+
         socket.on('evaluation-result', ({ questionIndex, evaluation, isCompleted }) => {
+          setIsAiTyping(false);
           if (isCompleted) {
             router.push(`/results/${id}`);
           } else {
             setCurrentQuestionIndex(prev => prev + 1);
-            setChat(prev => [...prev, { role: 'ai', text: data.questions[questionIndex + 1].questionText }]);
+            if (data.questions[questionIndex + 1]) {
+              setChat(prev => [...prev, { role: 'ai', text: data.questions[questionIndex + 1].questionText }]);
+            }
           }
         });
 
       } catch (error) {
-        console.error(error);
+        console.error('Failed to load interview room:', error);
       } finally {
         setLoading(false);
       }
@@ -75,88 +96,169 @@ export default function InterviewRoom({ params }) {
     }
   }, [chat, isAiTyping]);
 
-  const submitAnswer = (e) => {
+  const submitAnswer = async (e) => {
     e.preventDefault();
-    if (!answer.trim()) return;
+    if (!answer.trim() || isAiTyping) return;
 
     const userText = answer;
     setAnswer('');
     setChat(prev => [...prev, { role: 'user', text: userText }]);
-    
-    socket.emit('submit-answer', {
-      interviewId: id,
-      questionIndex: currentQuestionIndex,
-      answerText: userText
-    });
+    setIsAiTyping(true);
+
+    try {
+      // First try real-time WebSocket
+      if (socket.connected) {
+        socket.emit('submit-answer', {
+          interviewId: id,
+          questionIndex: currentQuestionIndex,
+          answerText: userText
+        });
+      } else {
+        // Fallback REST endpoint
+        const { data } = await api.post(`/interview/${id}/submit`, {
+          questionIndex: currentQuestionIndex,
+          answerText: userText
+        });
+
+        setIsAiTyping(false);
+        if (data.isCompleted) {
+          router.push(`/results/${id}`);
+        } else {
+          setCurrentQuestionIndex(prev => prev + 1);
+          if (interview.questions[currentQuestionIndex + 1]) {
+            setChat(prev => [...prev, { role: 'ai', text: interview.questions[currentQuestionIndex + 1].questionText }]);
+          }
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      setIsAiTyping(false);
+    }
   };
 
-  if (loading) return <div className="flex-grow flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary-500" /></div>;
-  if (!interview) return <div className="p-8">Interview not found.</div>;
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-brand-purple" />
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (!interview) {
+    return (
+      <AppLayout>
+        <div className="p-8 text-center text-white">Interview session not found.</div>
+      </AppLayout>
+    );
+  }
 
   return (
-    <div className="flex-grow flex flex-col max-w-4xl mx-auto w-full p-4 h-[calc(100vh-64px)]">
-      <div className="mb-4">
-        <h1 className="text-2xl font-bold">{interview.role} Interview</h1>
-        <p className="text-slate-500">Question {currentQuestionIndex + 1} of {interview.questions.length}</p>
-      </div>
+    <AppLayout>
+      <div className="space-y-4 max-w-5xl mx-auto">
+        {/* Session Topbar */}
+        <div className="flex items-center justify-between p-4 rounded-2xl bg-brand-card border border-border">
+          <div className="flex items-center gap-3">
+            <Link href="/dashboard" className="p-2 rounded-xl bg-background-secondary border border-border text-content-secondary hover:text-white">
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+            <div>
+              <h1 className="text-base font-bold text-white leading-tight">
+                {interview.company || 'Tech Leader'} • {interview.role}
+              </h1>
+              <p className="text-[11px] text-content-secondary">
+                {interview.roundType} • {interview.difficulty}
+              </p>
+            </div>
+          </div>
 
-      <div 
-        ref={scrollRef}
-        className="flex-grow overflow-y-auto bg-white dark:bg-dark-card border border-slate-200 dark:border-dark-border rounded-2xl p-4 mb-4 space-y-6 shadow-sm"
-      >
-        <AnimatePresence>
-          {chat.map((msg, idx) => (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              key={idx}
-              className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
-            >
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${msg.role === 'user' ? 'bg-primary-600' : 'bg-slate-800'}`}>
-                {msg.role === 'user' ? <UserIcon className="h-5 w-5 text-white" /> : <Bot className="h-5 w-5 text-white" />}
-              </div>
-              <div className={`max-w-[80%] rounded-2xl p-4 ${msg.role === 'user' ? 'bg-primary-600 text-white rounded-tr-none' : 'bg-slate-100 dark:bg-dark-bg text-slate-800 dark:text-slate-200 rounded-tl-none'}`}>
-                {msg.text}
-              </div>
-            </motion.div>
-          ))}
-          {isAiTyping && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-4">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-slate-800">
-                <Bot className="h-5 w-5 text-white" />
-              </div>
-              <div className="bg-slate-100 dark:bg-dark-bg rounded-2xl p-4 rounded-tl-none flex items-center gap-2">
-                <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" />
-                <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce delay-100" />
-                <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce delay-200" />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+          <div className="flex items-center gap-4">
+            <span className="text-xs text-brand-accent font-semibold px-3 py-1 rounded-full bg-brand-purple/20 border border-brand-accent/30">
+              Question {Math.min(currentQuestionIndex + 1, interview.questions.length)} of {interview.questions.length}
+            </span>
+          </div>
+        </div>
 
-      <form onSubmit={submitAnswer} className="relative">
-        <textarea
-          value={answer}
-          onChange={(e) => setAnswer(e.target.value)}
-          disabled={isAiTyping}
-          placeholder="Type your answer here..."
-          className="w-full pl-4 pr-14 py-4 rounded-xl border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-card focus:ring-2 focus:ring-primary-500 outline-none resize-none h-24 shadow-sm disabled:opacity-50"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              submitAnswer(e);
-            }
-          }}
-        />
-        <button
-          type="submit"
-          disabled={isAiTyping || !answer.trim()}
-          className="absolute right-4 bottom-4 p-2 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-400 text-white rounded-lg transition-colors"
+        {/* Chat Stream Window */}
+        <div
+          ref={scrollRef}
+          className="p-6 rounded-3xl bg-brand-card border border-border min-h-[500px] max-h-[600px] overflow-y-auto space-y-6 shadow-modal-glow"
         >
-          <Send className="h-5 w-5" />
-        </button>
-      </form>
-    </div>
+          {chat.map((msg, idx) => (
+            <div
+              key={idx}
+              className={`flex gap-3.5 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
+            >
+              <div
+                className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md ${
+                  msg.role === 'user' ? 'bg-sidebar text-white' : 'bg-brand-purple text-white'
+                }`}
+              >
+                {msg.role === 'user' ? <UserIcon className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
+              </div>
+
+              <div
+                className={`max-w-[82%] rounded-2xl p-4 text-xs sm:text-sm leading-relaxed space-y-2 ${
+                  msg.role === 'user'
+                    ? 'bg-purple-gradient text-white rounded-tr-none shadow-card-glow'
+                    : 'bg-background-secondary text-content-primary border border-border/70 rounded-tl-none'
+                }`}
+              >
+                <p>{msg.text}</p>
+
+                {/* Instant Score Badge if evaluated */}
+                {msg.evaluation && (
+                  <div className="pt-2 mt-2 border-t border-white/20 flex items-center justify-between text-[11px]">
+                    <span className="font-semibold text-white/90">Score: {msg.evaluation.score}/100</span>
+                    <span className="text-white/80">{msg.evaluation.clarity}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {isAiTyping && (
+            <div className="flex gap-3.5">
+              <div className="w-9 h-9 rounded-xl bg-brand-purple flex items-center justify-center text-white flex-shrink-0">
+                <Bot className="h-5 w-5" />
+              </div>
+              <div className="bg-background-secondary border border-border/70 rounded-2xl p-4 rounded-tl-none flex items-center gap-2">
+                <span className="text-xs text-content-secondary">Interviewer is evaluating your response</span>
+                <div className="w-1.5 h-1.5 bg-brand-accent rounded-full animate-bounce" />
+                <div className="w-1.5 h-1.5 bg-brand-accent rounded-full animate-bounce delay-100" />
+                <div className="w-1.5 h-1.5 bg-brand-accent rounded-full animate-bounce delay-200" />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Answer Submission Form */}
+        <form onSubmit={submitAnswer} className="relative">
+          <textarea
+            value={answer}
+            onChange={(e) => setAnswer(e.target.value)}
+            disabled={isAiTyping}
+            placeholder="Structure your answer clearly with reasoning, trade-offs, and examples... (Press Enter to submit, Shift+Enter for newline)"
+            className="w-full bg-brand-card border border-border rounded-2xl p-4 pr-16 text-xs sm:text-sm text-white placeholder-content-muted focus:outline-none focus:border-brand-purple h-28 resize-none leading-relaxed"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                submitAnswer(e);
+              }
+            }}
+          />
+
+          <button
+            type="submit"
+            disabled={isAiTyping || !answer.trim()}
+            className="absolute right-4 bottom-4 p-3 rounded-xl bg-purple-gradient text-white shadow-card-glow hover:opacity-95 disabled:opacity-40 transition-all"
+            title="Send Answer"
+          >
+            <Send className="h-4 w-4" />
+          </button>
+        </form>
+      </div>
+    </AppLayout>
   );
 }

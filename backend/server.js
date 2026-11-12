@@ -4,8 +4,14 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import connectDB from './config/db.js';
+
 import authRoutes from './routes/authRoutes.js';
 import interviewRoutes from './routes/interviewRoutes.js';
+import companyRoutes from './routes/companyRoutes.js';
+import positionRoutes from './routes/positionRoutes.js';
+import resumeRoutes from './routes/resumeRoutes.js';
+import codingRoutes from './routes/codingRoutes.js';
+import analyticsRoutes from './routes/analyticsRoutes.js';
 import { initializeSocket } from './socket/interviewSocket.js';
 
 dotenv.config();
@@ -17,25 +23,44 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: '*', // For development, allow all origins
-    methods: ['GET', 'POST']
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE']
   }
 });
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Routes
+// Health Check
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    platform: 'AI Interview Intelligence',
+    version: '2.0.0-ultra-elite',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Mount Domain Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/interview', interviewRoutes);
+app.use('/api/companies', companyRoutes);
+app.use('/api/positions', positionRoutes);
+app.use('/api/resumes', resumeRoutes);
+app.use('/api/coding', codingRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
-// Socket.io
+// Socket.io initialization
 initializeSocket(io);
 
 // Basic route
 app.get('/', (req, res) => {
-  res.send('AI Interview Copilot API is running...');
+  res.json({
+    message: 'AI Interview Intelligence Platform API running in Ultra-Elite mode',
+    status: 'ONLINE'
+  });
 });
 
 // Error Handling middleware
@@ -50,7 +75,7 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
-  console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+  console.log(`[Server] AI Interview Intelligence running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
 });
 
-// Trigger nodemon restart 5
+export { app, server };
