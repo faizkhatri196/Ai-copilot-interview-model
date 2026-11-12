@@ -1,4 +1,5 @@
 import Position from '../models/Position.js';
+import { isDbConnected } from '../config/db.js';
 
 const defaultPositions = [
   {
@@ -91,19 +92,20 @@ export const getPositions = async (req, res) => {
     let filter = {};
     if (category) filter.category = category;
 
-    let positions = [];
-    try {
-      positions = await Promise.race([
-        Position.find(filter).sort({ category: 1, title: 1 }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
-      ]);
-    } catch {}
-
-    if (!positions || positions.length === 0) {
-      const filtered = category ? defaultPositions.filter(p => p.category === category) : defaultPositions;
-      return res.json(filtered);
+    if (isDbConnected()) {
+      try {
+        const positions = await Promise.race([
+          Position.find(filter).sort({ category: 1, title: 1 }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
+        ]);
+        if (positions && positions.length > 0) return res.json(positions);
+      } catch (dbErr) {
+        console.warn('[Position Controller] DB query failed, using premier positions:', dbErr.message);
+      }
     }
-    res.json(positions);
+
+    const filtered = category ? defaultPositions.filter(p => p.category === category) : defaultPositions;
+    return res.json(filtered);
   } catch (error) {
     res.json(defaultPositions);
   }
@@ -113,12 +115,17 @@ export const getPositionBySlug = async (req, res) => {
   try {
     const { slug } = req.params;
     let position = null;
-    try {
-      position = await Promise.race([
-        Position.findOne({ slug: slug.toLowerCase() }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
-      ]);
-    } catch {}
+
+    if (isDbConnected()) {
+      try {
+        position = await Promise.race([
+          Position.findOne({ slug: slug.toLowerCase() }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
+        ]);
+      } catch (dbErr) {
+        console.warn('[Position Controller] DB lookup failed:', dbErr.message);
+      }
+    }
 
     if (!position) {
       const match = defaultPositions.find(p => p.slug === slug.toLowerCase());

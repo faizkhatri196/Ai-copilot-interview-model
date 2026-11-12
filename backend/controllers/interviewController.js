@@ -3,7 +3,7 @@ import User from '../models/User.js';
 import CandidateMemory from '../models/CandidateMemory.js';
 import { isDbConnected } from '../config/db.js';
 import { memoryStore } from '../services/storageFallback.js';
-import { generateInterviewQuestions, evaluateAnswer } from '../services/aiService.js';
+import { generateInterviewQuestions, evaluateAnswer, generateVoiceTurn } from '../services/aiService.js';
 
 export const createInterview = async (req, res) => {
   try {
@@ -161,6 +161,29 @@ export const submitInterviewAnswer = async (req, res) => {
       evaluation,
       isCompleted: interview.status === 'Completed'
     });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const handleVoiceTurn = async (req, res) => {
+  try {
+    const { userSpokenText, history, role, company, difficulty, roundType } = req.body;
+
+    if (!userSpokenText || userSpokenText.trim().length === 0) {
+      return res.status(400).json({ message: 'Spoken transcript is required.' });
+    }
+
+    const turn = await generateVoiceTurn({
+      userSpokenText,
+      history: history || [],
+      role: role || 'Senior Software Engineer',
+      company: company || 'Amazon',
+      difficulty: difficulty || 'Senior',
+      roundType: roundType || 'Technical Interview'
+    });
+
+    res.json(turn);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

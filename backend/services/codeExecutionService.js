@@ -4,7 +4,7 @@ import vm from 'vm';
  * Isolated Code Execution Runner
  * Safe runtime evaluation isolated from host process, environment, and network.
  */
-export const runIsolatedCode = async ({ code, language, testCases, slug, timeLimitMs = 2000 }) => {
+export const runIsolatedCode = async ({ code, language, testCases = [], slug, timeLimitMs = 2500 }) => {
   const startTime = Date.now();
   const testResults = [];
   let passedCount = 0;
@@ -48,9 +48,53 @@ export const runIsolatedCode = async ({ code, language, testCases, slug, timeLim
 
       const context = vm.createContext(sandbox);
 
-      // Wrap code with execution invocation based on challenge function signature
+      // Harness injection per slug
       let wrappedCode = '';
-      if (slug === 'two-sum') {
+      if (slug === 'token-bucket-rate-limiter') {
+        wrappedCode = `
+          ${code}
+          function runRateLimiter(ops, params) {
+            let limiter = null;
+            const res = [];
+            for (let i = 0; i < ops.length; i++) {
+              if (ops[i] === 'constructor') {
+                limiter = new TokenBucketRateLimiter(params[i][0], params[i][1]);
+                res.push(null);
+              } else if (ops[i] === 'allowRequest') {
+                res.push(limiter.allowRequest(params[i][0], params[i][1]));
+              }
+            }
+            return res;
+          }
+          outputData = runRateLimiter(inputData.operations, inputData.params);
+        `;
+      } else if (slug === 'lru-cache-ttl') {
+        wrappedCode = `
+          ${code}
+          function runLRU(ops, args) {
+            let cache = null;
+            const res = [];
+            for (let i = 0; i < ops.length; i++) {
+              if (ops[i] === 'constructor') {
+                cache = new LRUTTLCache(args[i][0]);
+                res.push(null);
+              } else if (ops[i] === 'set') {
+                cache.set(args[i][0], args[i][1], args[i][2], args[i][3]);
+                res.push(null);
+              } else if (ops[i] === 'get') {
+                res.push(cache.get(args[i][0], args[i][1]));
+              }
+            }
+            return res;
+          }
+          outputData = runLRU(inputData.ops, inputData.args);
+        `;
+      } else if (slug === 'flatten-nested-object') {
+        wrappedCode = `
+          ${code}
+          outputData = flattenObject(inputData);
+        `;
+      } else if (slug === 'two-sum') {
         wrappedCode = `
           ${code}
           outputData = twoSum(inputData.nums, inputData.target);
@@ -60,16 +104,13 @@ export const runIsolatedCode = async ({ code, language, testCases, slug, timeLim
           ${code}
           outputData = lengthOfLongestSubstring(inputData.s);
         `;
-      } else if (slug === 'merge-intervals') {
-        wrappedCode = `
-          ${code}
-          outputData = merge(inputData.intervals);
-        `;
       } else {
         wrappedCode = `
           ${code}
           if (typeof solution === 'function') {
             outputData = solution(inputData);
+          } else if (typeof execute === 'function') {
+            outputData = execute(inputData);
           }
         `;
       }
@@ -86,8 +127,8 @@ export const runIsolatedCode = async ({ code, language, testCases, slug, timeLim
         testIndex: i + 1,
         passed: isPassed,
         isHidden: tc.isHidden,
-        input: tc.isHidden ? '[HIDDEN]' : tc.input,
-        expected: tc.isHidden ? '[HIDDEN]' : tc.expectedOutput,
+        input: tc.isHidden ? '[HIDDEN TEST CASE]' : tc.input,
+        expected: tc.isHidden ? '[HIDDEN TEST CASE]' : tc.expectedOutput,
         actual: tc.isHidden ? (isPassed ? '[PASSED]' : '[FAILED]') : actualString,
       });
     }
@@ -121,4 +162,3 @@ export const runIsolatedCode = async ({ code, language, testCases, slug, timeLim
     };
   }
 };
-

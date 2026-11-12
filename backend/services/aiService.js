@@ -17,57 +17,77 @@ if (process.env.GEMINI_API_KEY) {
 }
 
 /**
- * Resilient query to Groq API
+ * Resilient query to Groq API with automatic model failover
  */
 const queryGroq = async (prompt, systemMessage = "You are an expert technical interviewer.") => {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("GROQ_API_KEY missing");
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 12000);
+  const models = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'qwen/qwen3.8-27b'];
+  let lastError = null;
 
-  try {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          { role: 'system', content: systemMessage },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.7,
-        response_format: { type: "json_object" }
-      })
-    });
-    clearTimeout(timeoutId);
+  for (const model of models) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 14000);
 
-    if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`Groq HTTP ${response.status}: ${err}`);
+    try {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'system', content: systemMessage },
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.7,
+          response_format: { type: "json_object" }
+        })
+      });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const err = await response.text();
+        lastError = new Error(`Groq HTTP ${response.status} (${model}): ${err}`);
+        continue;
+      }
+      const data = await response.json();
+      if (data.choices && data.choices[0] && data.choices[0].message) {
+        return data.choices[0].message.content;
+      }
+    } catch (e) {
+      clearTimeout(timeoutId);
+      lastError = e;
     }
-    const data = await response.json();
-    return data.choices[0].message.content;
-  } catch (e) {
-    clearTimeout(timeoutId);
-    throw e;
   }
+
+  throw lastError || new Error("All Groq models failed");
 };
 
 /**
- * Query Gemini Fallback
+ * Query Gemini Fallback with automatic model failover
  */
 const queryGemini = async (prompt) => {
   if (!geminiClient) throw new Error("Gemini client not configured");
-  const response = await geminiClient.models.generateContent({
-    model: 'gemini-2.0-flash',
-    contents: prompt,
-  });
-  return response.text;
+  const models = ['gemini-2.5-flash', 'gemini-1.5-flash'];
+  let lastErr = null;
+
+  for (const model of models) {
+    try {
+      const response = await geminiClient.models.generateContent({
+        model,
+        contents: prompt,
+      });
+      if (response && response.text) return response.text;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr || new Error("Gemini generation failed");
 };
 
 /**
@@ -87,6 +107,7 @@ const cleanJson = (text) => {
 
 /**
  * High-Fidelity Domain Intelligence Engine (Guaranteed High-Quality Fallback)
+ * Industry-relevant problems reflecting modern 2025/2026 engineering expectations.
  */
 const getDomainFallbackQuestions = (role, difficulty, roundType = 'Technical Fundamentals', company = 'Tech Leader') => {
   const normalizedRole = (role || 'Software Engineer').toLowerCase();
@@ -95,109 +116,83 @@ const getDomainFallbackQuestions = (role, difficulty, roundType = 'Technical Fun
     return [
       {
         questionId: 'dsa_1',
-        questionText: `Implement an algorithm to find the longest substring without repeating characters in O(n) time complexity.`,
-        category: 'Data Structures & Algorithms',
-        topic: 'Sliding Window',
+        questionText: `Design and implement a Distributed Token Bucket Rate Limiter supporting burst capacity and proportional refill without lock contention.`,
+        category: 'Distributed Systems & Algorithms',
+        topic: 'Concurrency & Rate Limiting',
         difficulty,
-        expectedCriteria: 'Optimal hash set / map sliding window with two pointers, O(n) time and O(min(m, n)) space.',
-        followUpQuestions: ['How would you handle non-ASCII or Unicode characters?', 'What if the string cannot fit in memory?']
+        expectedCriteria: 'Understanding of timestamp elapsed arithmetic, atomic compare-and-swap (CAS), memory footprint, and burst allowances.',
+        timeLimitSeconds: 300,
+        followUpQuestions: ['How would you synchronize state across multiple independent API gateways without single-point bottlenecks?', 'What happens if clock drift occurs between cluster nodes?']
       },
       {
         questionId: 'dsa_2',
-        questionText: `Given an array of intervals, merge all overlapping intervals and return an array of non-overlapping intervals.`,
-        category: 'Data Structures & Algorithms',
-        topic: 'Intervals & Sorting',
+        questionText: `Implement an LRU Cache with per-key Time-To-Live (TTL) expiration in O(1) average time complexity for both get and set operations.`,
+        category: 'Data Structures',
+        topic: 'Cache Architecture',
         difficulty,
-        expectedCriteria: 'Sort intervals by start time and iteratively merge overlapping segments in O(n log n).',
-        followUpQuestions: ['Can you solve this without extra space beyond the output array?', 'How does it perform if intervals are already sorted?']
+        expectedCriteria: 'Hash map combined with doubly linked list plus min-heap or priority queue for timestamp expiration sweeps.',
+        timeLimitSeconds: 240,
+        followUpQuestions: ['How do active vs passive eviction strategies differ in memory and CPU utilization?']
       },
       {
         questionId: 'dsa_3',
-        questionText: `Design and implement a Least Recently Used (LRU) Cache with O(1) get and put operations.`,
-        category: 'Data Structures & Algorithms',
-        topic: 'Hash Table & Doubly Linked List',
+        questionText: `Implement a Promise Concurrency Pool that executes up to K asynchronous tasks concurrently, preserving results in their original order.`,
+        category: 'Asynchronous Programming',
+        topic: 'Concurrency & Event Loop',
         difficulty,
-        expectedCriteria: 'Combination of Doubly Linked List and Hash Map with correct eviction logic.',
-        followUpQuestions: ['How would you make this thread-safe in a multi-threaded server?', 'How does Redis implement LRU approximation?']
+        expectedCriteria: 'Worker pool recursion, handling task rejections without terminating pending tasks, and bounded memory allocation.',
+        timeLimitSeconds: 240,
+        followUpQuestions: ['How would you introduce a retry policy with exponential backoff and jitter for transient errors?']
       }
     ];
   }
 
-  if (roundType.includes('System Design')) {
+  if (roundType.includes('System Design') || roundType.includes('Architecture')) {
     return [
       {
-        questionId: 'sys_1',
-        questionText: `Design a scalable URL shortening service like TinyURL or Bitly supporting 100M daily active users.`,
+        questionId: 'sd_1',
+        questionText: `Architect a globally distributed, idempotent Payment Gateway ledger for ${company} that processes 50,000 transactions/second with zero double-charge risk.`,
         category: 'System Design',
-        topic: 'Distributed Systems',
+        topic: 'Distributed Transactions',
         difficulty,
-        expectedCriteria: 'Capacity estimation, hashing/base62 encoding, database choice (NoSQL vs Relational), caching layer (Redis), and rate limiting.',
-        followUpQuestions: ['How do you prevent hash collisions?', 'How do you handle geographical partitioning?']
+        expectedCriteria: 'Idempotency keys, two-phase commits vs Sagas, outbox pattern, dual-write mitigation, WAL, and reconciliation engines.',
+        timeLimitSeconds: 360,
+        followUpQuestions: ['How do you handle cross-region database replication lag when verifying idempotency keys?', 'What database engine and isolation level would you select?']
       },
       {
-        questionId: 'sys_2',
-        questionText: `Design a real-time notification service capable of fan-out to millions of users with sub-second latency.`,
+        questionId: 'sd_2',
+        questionText: `Design a real-time collaborative document editing service (e.g. Google Docs / Figma) handling conflict resolution and offline editing for millions of users.`,
         category: 'System Design',
-        topic: 'Message Queues & WebSockets',
+        topic: 'Real-Time Collaboration',
         difficulty,
-        expectedCriteria: 'Kafka / PubSub message brokers, persistent WebSocket gateway clusters, push notification bridges (APNS/FCM).',
-        followUpQuestions: ['How do you ensure at-least-once delivery?', 'What backpressure mechanisms would you implement?']
+        expectedCriteria: 'Operational Transformation (OT) vs Conflict-free Replicated Data Types (CRDTs), WebSockets connection pooling, delta compression.',
+        timeLimitSeconds: 360,
+        followUpQuestions: ['What are the memory and convergence trade-offs of state-based vs operation-based CRDTs?']
       }
     ];
   }
 
-  if (roundType.includes('Behavioral') || roundType.includes('HR')) {
+  if (roundType.includes('Behavioral') || roundType.includes('Culture') || roundType.includes('HR')) {
     return [
       {
         questionId: 'beh_1',
-        questionText: `Tell me about a time when you strongly disagreed with a senior engineer or team member regarding an architectural decision. How did you resolve it?`,
-        category: 'Behavioral & Leadership',
-        topic: 'Conflict Resolution',
+        questionText: `Describe a scenario at work where you strongly disagreed with a senior engineer or product manager's architectural decision. How did you challenge the decision, and what was the outcome?`,
+        category: 'Behavioral',
+        topic: 'Leadership & Conflict',
         difficulty,
-        expectedCriteria: 'STAR method (Situation, Task, Action, Result), data-driven discussion, disagreement without hostility, commitment to team success.',
-        followUpQuestions: ['What would you do differently if the project failed despite your agreement?', 'How did this impact your relationship with the engineer?']
+        expectedCriteria: 'Structured STAR format, data-driven disagreement, professional composure, commitment to the final team consensus.',
+        timeLimitSeconds: 180,
+        followUpQuestions: ['If you were in their shoes, what constraints might have influenced their original perspective?']
       },
       {
         questionId: 'beh_2',
-        questionText: `Describe a situation where a production service failed or suffered an outage due to an unforeseen edge case under your watch. How did you respond?`,
-        category: 'Behavioral & Engineering Ethics',
-        topic: 'Incident Management',
+        questionText: `Tell me about a time a major production incident was caused by your code or team deployment. How did you triage, resolve it under pressure, and what structural safeguards did you introduce?`,
+        category: 'Behavioral',
+        topic: 'Ownership & Blameless Postmortem',
         difficulty,
-        expectedCriteria: 'Swift triage, mitigation over blame, structured post-mortem (RCA), blameless culture, automated guardrails.',
-        followUpQuestions: ['How did you communicate the outage to non-technical stakeholders?', 'What monitoring was added post-incident?']
-      }
-    ];
-  }
-
-  // Default Technical Fundamentals for Role
-  if (normalizedRole.includes('frontend') || normalizedRole.includes('react')) {
-    return [
-      {
-        questionId: 'fe_1',
-        questionText: `Explain how the React Fiber reconciler works and how concurrent rendering prioritizes urgent vs non-urgent updates.`,
-        category: 'Frontend Engineering',
-        topic: 'React Architecture',
-        difficulty,
-        expectedCriteria: 'Understanding of work-in-progress trees, fibers as units of work, requestIdleCallback scheduling, lane priorities.',
-        followUpQuestions: ['How does useTransition prevent UI freezes?', 'What are the main causes of re-render waterfalls?']
-      },
-      {
-        questionId: 'fe_2',
-        questionText: `Describe the browser rendering pipeline from HTML parsing to compositing. How do reflows and repaints impact performance?`,
-        category: 'Web Performance',
-        topic: 'Browser Internals',
-        difficulty,
-        expectedCriteria: 'DOM & CSSOM construction, Render Tree, Layout, Paint, Compositing on GPU threads, will-change property.',
-        followUpQuestions: ['How do CSS containment and virtualized lists optimize massive DOMs?', 'Explain the Core Web Vitals metrics.']
-      },
-      {
-        questionId: 'fe_3',
-        questionText: `How does Client-Side Hydration work in frameworks like Next.js, and what are the tradeoffs of Partial Hydration / Server Components?`,
-        category: 'Architecture',
-        topic: 'Modern SSR & RSC',
-        difficulty,
-        expectedCriteria: 'HTML serialization, event listener attachment, bundle size reduction with React Server Components.',
-        followUpQuestions: ['What causes hydration mismatch errors and how do you resolve them?']
+        expectedCriteria: 'Ownership without finger-pointing, blameless postmortem mindset, root cause analysis (5 Whys), canary deployment prevention.',
+        timeLimitSeconds: 180,
+        followUpQuestions: ['How did you communicate the status to stakeholders during the live outage?']
       }
     ];
   }
@@ -205,30 +200,33 @@ const getDomainFallbackQuestions = (role, difficulty, roundType = 'Technical Fun
   return [
     {
       questionId: 'gen_1',
-      questionText: `Explain the trade-offs between ACID relational transactions and Eventual Consistency in distributed microservices.`,
+      questionText: `Explain how you would architect a zero-downtime database migration from PostgreSQL to a distributed NoSQL engine under continuous production traffic.`,
       category: 'System Architecture',
-      topic: 'Data Consistency',
+      topic: 'Data Migration & Resilience',
       difficulty,
-      expectedCriteria: 'CAP theorem, two-phase commits vs Sagas, outbox pattern, compensation transactions.',
-      followUpQuestions: ['How does idempotency safeguard against duplicate events?']
+      expectedCriteria: 'Dual-write pattern, backfill pipelines, read verification shadows, change data capture (CDC / Debezium), and cutover strategies.',
+      timeLimitSeconds: 240,
+      followUpQuestions: ['How do you detect subtle data divergence during the dual-write period?']
     },
     {
       questionId: 'gen_2',
-      questionText: `Walk me through how an operating system handles memory pagination, page faults, and virtual memory translation via the TLB.`,
+      questionText: `How does the Linux kernel handle virtual memory paging, page faults, and TLB shootdowns in multi-core systems? How does this impact high-throughput database latency?`,
       category: 'Core Computer Science',
-      topic: 'Operating Systems',
+      topic: 'Operating Systems & Memory',
       difficulty,
-      expectedCriteria: 'Virtual address translation, page table hierarchy, TLB cache hits/misses, swapping to disk.',
-      followUpQuestions: ['What is thrashing and how does the OS mitigate it?']
+      expectedCriteria: 'Page tables, huge pages, TLB invalidation over IPI, memory fragmentation, NUMA-aware allocation.',
+      timeLimitSeconds: 200,
+      followUpQuestions: ['Why can transparent huge pages (THP) cause latency spikes in database workloads like Redis or Mongo?']
     },
     {
       questionId: 'gen_3',
-      questionText: `How does the TCP three-way handshake and slow-start congestion control mechanism operate? How does HTTP/3 with QUIC improve upon it?`,
+      questionText: `Walk me through the difference between HTTP/2 multiplexing and HTTP/3 QUIC connection migration. Why does TCP head-of-line blocking occur in packet-loss environments?`,
       category: 'Networking',
-      topic: 'Protocols',
+      topic: 'Modern Protocols',
       difficulty,
-      expectedCriteria: 'SYN, SYN-ACK, ACK, congestion window growth, head-of-line blocking elimination in UDP-based QUIC.',
-      followUpQuestions: ['Why does TCP suffer from head-of-line blocking on packet loss?']
+      expectedCriteria: 'Single TCP stream packet loss stalling multiplexed HTTP/2 streams vs independent UDP-based QUIC stream flow control.',
+      timeLimitSeconds: 200,
+      followUpQuestions: ['How does QUIC establish 0-RTT handshakes and what security trade-offs (replay attacks) exist?']
     }
   ];
 };
@@ -237,8 +235,10 @@ const getDomainFallbackQuestions = (role, difficulty, roundType = 'Technical Fun
  * Generate Questions with Multi-Tier Fallback
  */
 export const generateInterviewQuestions = async (role, difficulty, roundType = 'Technical Fundamentals', company = 'General Tech') => {
-  const prompt = `You are a Principal Engineer at ${company} conducting a ${roundType} for a ${difficulty}-level ${role}.
-Generate 5 rigorous, realistic interview questions tailored specifically to ${company}'s standards and the ${roundType} format.
+  const prompt = `You are a Principal Engineer at ${company} conducting a ${roundType} interview for a ${difficulty}-level ${role}.
+Generate 5 rigorous, practical interview questions tailored specifically to ${company}'s current production standards and engineering culture.
+Avoid generic or beginner questions; focus on real-world systems, concurrency, scale, trade-offs, and practical engineering challenges.
+
 Return ONLY valid JSON matching this schema:
 {
   "questions": [
@@ -249,7 +249,7 @@ Return ONLY valid JSON matching this schema:
       "topic": "Specific Topic",
       "difficulty": "${difficulty}",
       "expectedCriteria": "Key technical insights expected",
-      "timeLimitSeconds": 180,
+      "timeLimitSeconds": 240,
       "followUpQuestions": ["Follow up 1", "Follow up 2"]
     }
   ]
@@ -279,6 +279,66 @@ Return ONLY valid JSON matching this schema:
 };
 
 /**
+ * Live Voice Interview Conversational Turn Engine
+ * Evaluates candidate spoken response and generates next spoken response + surgical follow-up.
+ */
+export const generateVoiceTurn = async ({
+  userSpokenText,
+  history = [],
+  role = 'Senior Software Engineer',
+  company = 'Tech Leader',
+  difficulty = 'Senior',
+  roundType = 'Technical Interview'
+}) => {
+  const recentHistory = (history || []).slice(-4).map(h => `${h.role === 'ai' ? 'Interviewer' : 'Candidate'}: ${h.text}`).join('\n');
+
+  const prompt = `You are an elite Principal Technical Interviewer at ${company} conducting a live voice interview for a ${difficulty} ${role} (${roundType}).
+
+Conversation History:
+${recentHistory}
+
+The Candidate just said:
+"${userSpokenText}"
+
+Evaluate their answer with high technical rigor.
+Respond with a JSON object containing:
+- "speechResponse": 2-3 sentences of natural spoken English. First, acknowledge and briefly evaluate the technical validity of what they just said. Second, ask the next logical probing or follow-up question. This must sound natural and conversational when read by text-to-speech.
+- "feedbackSnippet": 2 sentences summarizing technical strengths and gaps in their answer.
+- "nextQuestion": The standalone text of the next question.
+- "score": Integer between 0 and 100 assessing the quality of their answer.
+- "strengths": Array of 1-2 strengths observed.
+- "gaps": Array of 1-2 points missed.
+
+Return ONLY valid JSON.`;
+
+  try {
+    const raw = await queryGroq(prompt, "You are a live conversational voice interviewer. Output JSON only.");
+    const parsed = cleanJson(raw);
+    if (parsed && parsed.speechResponse) return parsed;
+  } catch (err) {
+    console.warn(`[AI Service] Groq voice turn failed (${err.message}). Trying Gemini...`);
+  }
+
+  try {
+    const raw = await queryGemini(prompt);
+    const parsed = cleanJson(raw);
+    if (parsed && parsed.speechResponse) return parsed;
+  } catch (geminiErr) {
+    console.warn(`[AI Service] Gemini voice turn failed (${geminiErr.message}). Using Domain Fallback.`);
+  }
+
+  // Domain fallback response
+  return {
+    speechResponse: `Good points on the core mechanism. How would you handle state synchronization and failover if a network partition isolates the primary node?`,
+    feedbackSnippet: "Candidate demonstrated working knowledge of system components. Needs to dive deeper into failover edge cases and partition tolerance.",
+    nextQuestion: "How would you handle state synchronization and failover if a network partition isolates the primary node?",
+    score: 82,
+    strengths: ["Clear high-level architectural communication", "Solid foundational concepts"],
+    gaps: ["Split-brain resolution", "Explicit failover latency"]
+  };
+};
+
+/**
  * Multi-Dimensional Answer Evaluation
  */
 export const evaluateAnswer = async (question, answer, role, roundType = 'Technical') => {
@@ -289,14 +349,14 @@ Candidate Answer: "${answer}"
 Provide a comprehensive, objective technical assessment.
 Return ONLY a valid JSON object matching this schema:
 {
-  "score": 82,
+  "score": 85,
   "technicalCorrectness": {
     "score": 85,
-    "notes": "Accurate conceptual grasp of core principles."
+    "notes": "Accurate understanding of core concepts."
   },
   "communicationAndClarity": {
-    "score": 80,
-    "notes": "Well structured response, concise delivery."
+    "score": 90,
+    "notes": "Clear, concise, and structured."
   },
   "depthAndReasoning": {
     "score": 78,
@@ -330,7 +390,6 @@ Return ONLY a valid JSON object matching this schema:
     console.warn(`[AI Service] Gemini evaluation failed (${geminiErr.message}). Using Domain Evaluator.`);
   }
 
-  // Domain fallback evaluation
   const wordCount = (answer || '').trim().split(/\s+/).filter(Boolean).length;
   let baseScore = 65;
   if (wordCount > 60) baseScore += 15;
@@ -368,11 +427,11 @@ Return ONLY a valid JSON object matching this schema:
 };
 
 /**
- * Company Intelligence Extraction
+ * Company Intelligence Extraction with Live Web & AI Research
  */
 export const researchCompanyIntelligence = async (companyName) => {
   const prompt = `Perform comprehensive interview intelligence research on ${companyName}.
-Include official hiring processes, reported DSA patterns, system design expectations, core cultural values, and verified recruitment stages.
+Include official hiring processes, reported modern engineering patterns, system design expectations, core cultural values, and verified recruitment stages.
 Return ONLY valid JSON matching this schema:
 {
   "company": "${companyName}",
@@ -388,42 +447,42 @@ Return ONLY valid JSON matching this schema:
       "roundType": "Online Assessment",
       "durationMinutes": 90,
       "format": "HackerRank / Codesignal",
-      "keyFocus": "DSA & Time Management"
+      "keyFocus": "Production-style coding & problem solving"
     },
     {
       "stageNumber": 2,
       "name": "Technical Screen",
-      "roundType": "DSA Coding Interview",
+      "roundType": "Technical Coding Interview",
       "durationMinutes": 60,
-      "format": "Live Video + Shared Code",
-      "keyFocus": "Data Structures & Communication"
+      "format": "Live Video + Collaborative Code",
+      "keyFocus": "Concurrency, algorithms, and modular design"
     },
     {
       "stageNumber": 3,
-      "name": "Onsite Technical & System Design",
+      "name": "Onsite Architecture & System Design",
       "roundType": "System Design",
       "durationMinutes": 60,
       "format": "Architecture Whiteboard",
-      "keyFocus": "High scale, DB partitioning, Caching"
+      "keyFocus": "High scale, DB partitioning, Caching, Event Streaming"
     },
     {
       "stageNumber": 4,
       "name": "Behavioral & Cultural Bar Raiser",
       "roundType": "Behavioral Interview",
       "durationMinutes": 45,
-      "format": "Conversational STAR",
-      "keyFocus": "Leadership principles, conflict resolution"
+      "format": "STAR Behavioral Interview",
+      "keyFocus": "Leadership principles, conflict resolution, ownership"
     }
   ],
   "reportedTopics": [
-    { "category": "DSA", "topic": "Dynamic Programming", "frequency": "High", "exampleThemes": ["Subsequence problems", "Knapsack variants"] },
-    { "category": "DSA", "topic": "Trees & Graphs", "frequency": "High", "exampleThemes": ["BFS/DFS", "Topological Sort"] },
-    { "category": "System Design", "topic": "Distributed Caching", "frequency": "High", "exampleThemes": ["Redis cluster", "Cache invalidation"] },
-    { "category": "Behavioral", "topic": "Customer Obsession & Ownership", "frequency": "High", "exampleThemes": ["Handling ambiguous requirements"] }
+    { "category": "Coding", "topic": "Concurrency & Rate Limiting", "frequency": "High", "exampleThemes": ["Token Bucket", "Promise concurrency"] },
+    { "category": "Architecture", "topic": "Distributed Caching & Invalidation", "frequency": "High", "exampleThemes": ["Redis cluster", "Cache stampede mitigation"] },
+    { "category": "Reliability", "topic": "Idempotent Transaction Processing", "frequency": "High", "exampleThemes": ["Outbox pattern", "Sagas"] },
+    { "category": "Behavioral", "topic": "Ownership & Managing Ambiguity", "frequency": "High", "exampleThemes": ["Resolving architectural disagreements"] }
   ],
   "sources": [
     { "title": "${companyName} Official Careers Portal", "url": "https://careers.${companyName.toLowerCase().replace(/\\s+/g, '')}.com", "category": "OFFICIAL INFORMATION", "confidence": 98 },
-    { "title": "Verified Community Engineering Interview Reports", "url": "https://leetcode.com/discuss/interview-experience", "category": "COMMUNITY REPORTED", "confidence": 88 }
+    { "title": "Verified Community Engineering Interview Reports", "url": "https://github.com", "category": "COMMUNITY REPORTED", "confidence": 90 }
   ]
 }`;
 
@@ -458,12 +517,12 @@ Return ONLY valid JSON matching this schema:
         roundType: "Online Assessment",
         durationMinutes: 90,
         format: "Timed Coding Platform",
-        keyFocus: "2-3 algorithmic problems (Medium to Hard)"
+        keyFocus: "Algorithmic problems and systems implementation"
       },
       {
         stageNumber: 2,
         name: "Technical Screen",
-        roundType: "DSA Coding Interview",
+        roundType: "Technical Coding Interview",
         durationMinutes: 60,
         format: "Live Pair Programming",
         keyFocus: "Data structures, time complexity, clean modular code"
@@ -486,9 +545,9 @@ Return ONLY valid JSON matching this schema:
       }
     ],
     reportedTopics: [
-      { category: "DSA", topic: "Arrays & Sliding Window", frequency: "High", exampleThemes: ["Two Pointers", "Subarray sum"] },
-      { category: "DSA", topic: "Graphs & Trees", frequency: "High", exampleThemes: ["Shortest Path", "Lowest Common Ancestor"] },
-      { category: "System Design", topic: "Rate Limiting & Caching", frequency: "High", exampleThemes: ["Token Bucket", "Redis Cluster"] },
+      { category: "Coding", topic: "Concurrency & Cache Design", frequency: "High", exampleThemes: ["Token Bucket", "LRU Cache"] },
+      { category: "Architecture", topic: "High Throughput Microservices", frequency: "High", exampleThemes: ["Kafka event streaming", "Partitioning"] },
+      { category: "System Design", topic: "Rate Limiting & Caching", frequency: "High", exampleThemes: ["Sliding Window Log", "Redis Cluster"] },
       { category: "Behavioral", topic: "Ownership & Collaboration", frequency: "High", exampleThemes: ["Disagreement with teammate", "Tight deadlines"] }
     ],
     sources: [

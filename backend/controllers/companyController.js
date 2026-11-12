@@ -1,4 +1,5 @@
 import Company from '../models/Company.js';
+import { isDbConnected } from '../config/db.js';
 import { researchCompanyIntelligence } from '../services/aiService.js';
 
 const defaultCompanies = [
@@ -22,19 +23,25 @@ export const getCompanies = async (req, res) => {
       filter = { name: { $regex: query, $options: 'i' } };
     }
     
-    // With 2-second timeout to prevent indefinite buffering when offline
-    const companies = await Promise.race([
-      Company.find(filter).sort({ name: 1 }).limit(30),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
-    ]);
-
-    if (!companies || companies.length === 0) {
-      return res.json(defaultCompanies);
+    if (isDbConnected()) {
+      try {
+        const companies = await Promise.race([
+          Company.find(filter).sort({ name: 1 }).limit(30),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
+        ]);
+        if (companies && companies.length > 0) return res.json(companies);
+      } catch (dbErr) {
+        console.warn('[Company Controller] DB query failed, using premier catalog:', dbErr.message);
+      }
     }
 
-    res.json(companies);
+    if (query) {
+      const q = query.toLowerCase();
+      const filtered = defaultCompanies.filter(c => c.name.toLowerCase().includes(q) || c.industry.toLowerCase().includes(q));
+      return res.json(filtered.length > 0 ? filtered : defaultCompanies);
+    }
+    res.json(defaultCompanies);
   } catch (error) {
-    // If DB is offline or buffering, return standard premier catalog
     res.json(defaultCompanies);
   }
 };
@@ -44,12 +51,16 @@ export const getCompanyBySlug = async (req, res) => {
     const { slug } = req.params;
     let company = null;
 
-    try {
-      company = await Promise.race([
-        Company.findOne({ slug: slug.toLowerCase() }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
-      ]);
-    } catch {}
+    if (isDbConnected()) {
+      try {
+        company = await Promise.race([
+          Company.findOne({ slug: slug.toLowerCase() }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
+        ]);
+      } catch (dbErr) {
+        console.warn('[Company Controller] DB lookup failed:', dbErr.message);
+      }
+    }
 
     if (!company) {
       const formattedName = slug.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
@@ -73,9 +84,13 @@ export const getCompanyBySlug = async (req, res) => {
         },
       };
 
-      try {
-        company = await Company.create(profile);
-      } catch {
+      if (isDbConnected()) {
+        try {
+          company = await Company.create(profile);
+        } catch {
+          company = profile;
+        }
+      } else {
         company = profile;
       }
     }
@@ -90,10 +105,13 @@ export const refreshCompanyResearch = async (req, res) => {
   try {
     const { slug } = req.params;
     let companyName = slug;
-    try {
-      const found = await Company.findOne({ slug: slug.toLowerCase() });
-      if (found) companyName = found.name;
-    } catch {}
+    
+    if (isDbConnected()) {
+      try {
+        const found = await Company.findOne({ slug: slug.toLowerCase() });
+        if (found) companyName = found.name;
+      } catch {}
+    }
 
     const research = await researchCompanyIntelligence(companyName);
     const profile = {
@@ -113,16 +131,19 @@ export const refreshCompanyResearch = async (req, res) => {
       },
     };
 
-    try {
-      const updated = await Company.findOneAndUpdate(
-        { slug: slug.toLowerCase() },
-        profile,
-        { upsert: true, new: true }
-      );
-      return res.json(updated);
-    } catch {
-      return res.json(profile);
+    if (isDbConnected()) {
+      try {
+        const updated = await Company.findOneAndUpdate(
+          { slug: slug.toLowerCase() },
+          profile,
+          { upsert: true, new: true }
+        );
+        return res.json(updated);
+      } catch {
+        return res.json(profile);
+      }
     }
+    return res.json(profile);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

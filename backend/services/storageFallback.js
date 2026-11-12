@@ -149,6 +149,42 @@ export const memoryStore = {
     interview.updatedAt = new Date();
     persist();
     return interview;
+  },
+
+  // Resumes
+  async countResumes(userId) {
+    return (store.resumes || []).filter(r => String(r.userId) === String(userId)).length;
+  },
+
+  async createResume(resumeData) {
+    if (!store.resumes) store.resumes = [];
+    const newResume = {
+      _id: generateId(),
+      ...resumeData,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    store.resumes.unshift(newResume);
+    persist();
+    return newResume;
+  },
+
+  async findResumesByUserId(userId) {
+    return (store.resumes || []).filter(r => String(r.userId) === String(userId));
+  },
+
+  async findResumeById(id, userId) {
+    return (store.resumes || []).find(r => String(r._id) === String(id) && (!userId || String(r.userId) === String(userId))) || null;
+  },
+
+  async setPrimaryResume(userId, resumeId) {
+    if (!store.resumes) store.resumes = [];
+    store.resumes.forEach(r => {
+      if (String(r.userId) === String(userId)) {
+        r.isPrimary = String(r._id) === String(resumeId);
+      }
+    });
+    persist();
   }
 };
 
