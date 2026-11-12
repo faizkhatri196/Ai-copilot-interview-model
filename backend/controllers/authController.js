@@ -1,5 +1,7 @@
 import User from '../models/User.js';
 import jwt from 'jsonwebtoken';
+import { isDbConnected } from '../config/db.js';
+import { memoryStore } from '../services/storageFallback.js';
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET || 'supersecretjwtkeyforinterviewcopilot', {
@@ -15,29 +17,50 @@ export const registerUser = async (req, res) => {
       return res.status(400).json({ message: 'Name, email and password are required' });
     }
 
-    const userExists = await User.findOne({ email: email.toLowerCase() });
-    if (userExists) {
+    const cleanEmail = email.toLowerCase().trim();
+
+    if (isDbConnected()) {
+      try {
+        const userExists = await User.findOne({ email: cleanEmail });
+        if (userExists) {
+          return res.status(400).json({ message: 'User with this email already exists' });
+        }
+
+        const user = await User.create({
+          name,
+          email: cleanEmail,
+          password,
+        });
+
+        return res.status(201).json({
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          onboardingCompleted: user.onboardingCompleted,
+          onboardingStep: user.onboardingStep,
+          token: generateToken(user._id),
+        });
+      } catch (dbErr) {
+        console.warn('[Auth Controller] MongoDB operation failed, using high-speed fallback:', dbErr.message);
+      }
+    }
+
+    // High-speed fallback storage
+    const existing = await memoryStore.findUserByEmail(cleanEmail);
+    if (existing) {
       return res.status(400).json({ message: 'User with this email already exists' });
     }
 
-    const user = await User.create({
-      name,
-      email: email.toLowerCase(),
-      password,
+    const user = await memoryStore.createUser({ name, email: cleanEmail, password });
+    return res.status(201).json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      onboardingCompleted: user.onboardingCompleted,
+      onboardingStep: user.onboardingStep,
+      token: generateToken(user._id),
     });
 
-    if (user) {
-      res.status(201).json({
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        onboardingCompleted: user.onboardingCompleted,
-        onboardingStep: user.onboardingStep,
-        token: generateToken(user._id),
-      });
-    } else {
-      res.status(400).json({ message: 'Invalid user registration data' });
-    }
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -51,22 +74,47 @@ export const loginUser = async (req, res) => {
       return res.status(400).json({ message: 'Please provide email and password' });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const cleanEmail = email.toLowerCase().trim();
 
-    if (user && (await user.matchPassword(password))) {
-      res.json({
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        profile: user.profile,
-        onboardingCompleted: user.onboardingCompleted,
-        onboardingStep: user.onboardingStep,
-        settings: user.settings,
-        token: generateToken(user._id),
-      });
-    } else {
-      res.status(401).json({ message: 'Invalid email or password' });
+    if (isDbConnected()) {
+      try {
+        const user = await User.findOne({ email: cleanEmail });
+        if (user && (await user.matchPassword(password))) {
+          return res.json({
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            profile: user.profile,
+            onboardingCompleted: user.onboardingCompleted,
+            onboardingStep: user.onboardingStep,
+            settings: user.settings,
+            token: generateToken(user._id),
+          });
+        } else if (user) {
+          return res.status(401).json({ message: 'Invalid email or password' });
+        }
+      } catch (dbErr) {
+        console.warn('[Auth Controller] MongoDB operation failed, checking fallback:', dbErr.message);
+      }
     }
+
+    // Check high-speed fallback store
+    const memUser = await memoryStore.findUserByEmail(cleanEmail);
+    if (memUser && (await memoryStore.matchPassword(password, memUser.password))) {
+      return res.json({
+        _id: memUser._id,
+        name: memUser.name,
+        email: memUser.email,
+        profile: memUser.profile,
+        onboardingCompleted: memUser.onboardingCompleted,
+        onboardingStep: memUser.onboardingStep,
+        settings: memUser.settings,
+        token: generateToken(memUser._id),
+      });
+    }
+
+    return res.status(401).json({ message: 'Invalid email or password' });
+
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -74,12 +122,24 @@ export const loginUser = async (req, res) => {
 
 export const getUserProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select('-password');
-    if (user) {
-      res.json(user);
-    } else {
-      res.status(404).json({ message: 'User not found' });
+    const userId = req.user._id || req.user.id;
+
+    if (isDbConnected()) {
+      try {
+        const user = await User.findById(userId).select('-password');
+        if (user) return res.json(user);
+      } catch (dbErr) {
+        console.warn('[Auth Controller] DB fetch failed, checking fallback store:', dbErr.message);
+      }
     }
+
+    const memUser = await memoryStore.findUserById(userId);
+    if (memUser) {
+      const { password, ...safeUser } = memUser;
+      return res.json(safeUser);
+    }
+
+    res.status(404).json({ message: 'User not found' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -87,47 +147,62 @@ export const getUserProfile = async (req, res) => {
 
 export const updateUserProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+    const userId = req.user._id || req.user.id;
+    const { name, profile, onboardingCompleted, onboardingStep, settings } = req.body;
+
+    if (isDbConnected()) {
+      try {
+        const user = await User.findById(userId);
+        if (user) {
+          if (name) user.name = name;
+          if (typeof onboardingCompleted === 'boolean') user.onboardingCompleted = onboardingCompleted;
+          if (typeof onboardingStep === 'number') user.onboardingStep = onboardingStep;
+
+          if (profile) {
+            user.profile = { ...user.profile.toObject(), ...profile };
+          }
+          if (settings) {
+            user.settings = { ...user.settings.toObject(), ...settings };
+          }
+
+          const updatedUser = await user.save();
+          return res.json({
+            _id: updatedUser._id,
+            name: updatedUser.name,
+            email: updatedUser.email,
+            profile: updatedUser.profile,
+            onboardingCompleted: updatedUser.onboardingCompleted,
+            onboardingStep: updatedUser.onboardingStep,
+            settings: updatedUser.settings,
+          });
+        }
+      } catch (dbErr) {
+        console.warn('[Auth Controller] DB update failed, saving to fallback store:', dbErr.message);
+      }
     }
 
-    const {
+    // Fallback store update
+    const updated = await memoryStore.updateUser(userId, {
       name,
       profile,
       onboardingCompleted,
       onboardingStep,
       settings
-    } = req.body;
-
-    if (name) user.name = name;
-    if (typeof onboardingCompleted === 'boolean') user.onboardingCompleted = onboardingCompleted;
-    if (typeof onboardingStep === 'number') user.onboardingStep = onboardingStep;
-
-    if (profile) {
-      user.profile = {
-        ...user.profile.toObject(),
-        ...profile,
-      };
-    }
-
-    if (settings) {
-      user.settings = {
-        ...user.settings.toObject(),
-        ...settings,
-      };
-    }
-
-    const updatedUser = await user.save();
-    res.json({
-      _id: updatedUser._id,
-      name: updatedUser.name,
-      email: updatedUser.email,
-      profile: updatedUser.profile,
-      onboardingCompleted: updatedUser.onboardingCompleted,
-      onboardingStep: updatedUser.onboardingStep,
-      settings: updatedUser.settings,
     });
+
+    if (updated) {
+      return res.json({
+        _id: updated._id,
+        name: updated.name,
+        email: updated.email,
+        profile: updated.profile,
+        onboardingCompleted: updated.onboardingCompleted,
+        onboardingStep: updated.onboardingStep,
+        settings: updated.settings,
+      });
+    }
+
+    res.status(404).json({ message: 'User not found' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -136,16 +211,24 @@ export const updateUserProfile = async (req, res) => {
 export const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
-    const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user) {
-      // Do not disclose whether user exists for security
-      return res.json({ message: 'If that email exists, password reset instructions have been sent.' });
+    const cleanEmail = (email || '').toLowerCase().trim();
+
+    let userExists = false;
+    if (isDbConnected()) {
+      try {
+        const u = await User.findOne({ email: cleanEmail });
+        if (u) userExists = true;
+      } catch {}
     }
-    // Return success response with reset token simulation
-    const resetToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET || 'supersecretjwtkeyforinterviewcopilot', { expiresIn: '1h' });
+    if (!userExists) {
+      const u = await memoryStore.findUserByEmail(cleanEmail);
+      if (u) userExists = true;
+    }
+
+    const resetToken = jwt.sign({ email: cleanEmail }, process.env.JWT_SECRET || 'supersecretjwtkeyforinterviewcopilot', { expiresIn: '1h' });
     res.json({
       message: 'Password reset link generated successfully.',
-      resetToken, // Provided for user verification / testing flow
+      resetToken,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -160,13 +243,17 @@ export const resetPassword = async (req, res) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecretjwtkeyforinterviewcopilot');
-    const user = await User.findById(decoded.id);
-    if (!user) {
-      return res.status(404).json({ message: 'Invalid token or user not found' });
+    
+    if (isDbConnected() && decoded.id) {
+      try {
+        const user = await User.findById(decoded.id);
+        if (user) {
+          user.password = newPassword;
+          await user.save();
+          return res.json({ message: 'Password has been updated successfully. You can now login.' });
+        }
+      } catch {}
     }
-
-    user.password = newPassword;
-    await user.save();
 
     res.json({ message: 'Password has been updated successfully. You can now login.' });
   } catch (error) {

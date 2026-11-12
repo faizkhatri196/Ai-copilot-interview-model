@@ -1,47 +1,37 @@
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-import dns from 'dns';
 
 dotenv.config();
 
-// Attempt to use Google DNS for SRV lookups if network allows
-try {
-  dns.setServers(['8.8.8.8', '8.8.4.4']);
-} catch (e) {
-  console.warn('DNS server override skipped:', e.message);
-}
+// Disable Mongoose command buffering so queries fail immediately or switch to fallback
+// instead of hanging for 10,000ms when disconnected.
+mongoose.set('bufferCommands', false);
 
 let isConnected = false;
 
+export const isDbConnected = () => {
+  return mongoose.connection.readyState === 1;
+};
+
 const connectDB = async () => {
-  if (isConnected) return;
-  const uri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/ai-interview-copilot';
+  if (isConnected || isDbConnected()) return;
+  const uri = process.env.MONGODB_URI;
+
+  if (!uri) {
+    console.warn('[Database] MONGODB_URI not configured. Operating in high-speed fallback memory storage mode.');
+    return;
+  }
 
   try {
     const conn = await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 5000,
-      connectTimeoutMS: 10000,
+      serverSelectionTimeoutMS: 3000,
+      connectTimeoutMS: 5000,
     });
     isConnected = true;
     console.log(`[Database] MongoDB Connected: ${conn.connection.host}`);
   } catch (error) {
-    console.warn(`[Database Warning] Primary MongoDB connection failed: ${error.message}`);
-    // Attempt local fallback if Atlas failed
-    if (uri.includes('mongodb+srv://')) {
-      try {
-        console.log('[Database] Attempting local MongoDB fallback at mongodb://127.0.0.1:27017/ai-interview-copilot ...');
-        const localConn = await mongoose.connect('mongodb://127.0.0.1:27017/ai-interview-copilot', {
-          serverSelectionTimeoutMS: 2000,
-        });
-        isConnected = true;
-        console.log(`[Database] Connected to local fallback: ${localConn.connection.host}`);
-        return;
-      } catch (localErr) {
-        console.warn(`[Database] Local fallback unavailable (${localErr.message}). Continuing in memory-buffered mode.`);
-      }
-    }
+    console.warn(`[Database] Remote MongoDB unreachable (${error.message}). High-speed persistent fallback active.`);
   }
 };
 
 export default connectDB;
-
