@@ -4,6 +4,7 @@
   "description": "Root configuration for AI Interview Copilot",
   "private": true,
   "scripts": {
+    "postinstall": "cd backend && npm install",
     "build": "cd backend && npm install",
     "start": "cd backend && npm start"
   }
