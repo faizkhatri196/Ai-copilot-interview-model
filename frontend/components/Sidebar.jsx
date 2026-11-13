@@ -90,9 +90,17 @@ const navSections = [
   },
 ];
 
-export default function Sidebar({ mobileOpen, setMobileOpen }) {
+export default function Sidebar({ mobileOpen, setMobileOpen, collapsed = false, setCollapsed }) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
+  const [internalCollapsed, setInternalCollapsed] = useState(false);
+  const isCollapsed = setCollapsed ? collapsed : internalCollapsed;
+  const toggleCollapsed = () => {
+    if (setCollapsed) {
+      setCollapsed(!collapsed);
+    } else {
+      setInternalCollapsed(!internalCollapsed);
+    }
+  };
 
   return (
     <>
@@ -107,7 +115,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
       {/* Main Sidebar Container */}
       <aside
         className={`fixed top-0 bottom-0 left-0 z-50 flex flex-col bg-sidebar border-r border-white/10 transition-all duration-300 ease-in-out shadow-2xl
-          ${collapsed ? 'w-20' : 'w-64'}
+          ${isCollapsed ? 'w-20' : 'w-64'}
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
       >
@@ -117,7 +125,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
             <div className="w-10 h-10 rounded-xl bg-brand-purple flex items-center justify-center shadow-purple-glow flex-shrink-0">
               <Bot className="h-6 w-6 text-white" />
             </div>
-            {!collapsed && (
+            {!isCollapsed && (
               <div className="flex flex-col">
                 <span className="font-extrabold text-base tracking-wide text-white leading-tight">
                   AI INTERVIEW
@@ -131,11 +139,11 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
 
           {/* Toggle Button (Desktop) */}
           <button
-            onClick={() => setCollapsed(!collapsed)}
+            onClick={toggleCollapsed}
             className="hidden lg:flex p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors"
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
-            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+            {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
           </button>
 
           {/* Close Button (Mobile) */}
@@ -151,7 +159,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
         <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
           {navSections.map((section, idx) => (
             <div key={idx} className="space-y-1">
-              {!collapsed && (
+              {!isCollapsed && (
                 <div className="px-3 pb-1 text-[11px] font-bold tracking-wider text-white/50 uppercase">
                   {section.title}
                 </div>
@@ -165,7 +173,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
                     key={item.name}
                     href={item.href}
                     onClick={() => setMobileOpen(false)}
-                    title={collapsed ? item.name : undefined}
+                    title={isCollapsed ? item.name : undefined}
                     className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-sm transition-all duration-200
                       ${isActive
                         ? 'bg-white text-sidebar shadow-md font-semibold'
@@ -176,10 +184,10 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
                     `}
                   >
                     <Icon className={`h-5 w-5 flex-shrink-0 transition-transform group-hover:scale-110 ${isActive ? 'text-sidebar' : 'text-white'}`} />
-                    {!collapsed && <span className="truncate">{item.name}</span>}
+                    {!isCollapsed && <span className="truncate">{item.name}</span>}
 
                     {/* Collapsed Tooltip */}
-                    {collapsed && (
+                    {isCollapsed && (
                       <div className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-brand-card text-white text-xs font-semibold whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity z-50 shadow-xl border border-white/20">
                         {item.name}
                       </div>
@@ -200,7 +208,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
             <div className="w-8 h-8 rounded-lg bg-brand-purple flex items-center justify-center text-white text-xs font-bold">
               AI
             </div>
-            {!collapsed && (
+            {!isCollapsed && (
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-white truncate">Pro Candidate</p>
                 <p className="text-[10px] text-white/60 truncate">Interview Ready</p>

@@ -10,15 +10,15 @@ mongoose.set('bufferCommands', false);
 let isConnected = false;
 
 export const isDbConnected = () => {
-  return mongoose.connection.readyState === 1;
+  return Boolean(isConnected && mongoose.connection && mongoose.connection.readyState === 1);
 };
 
 const connectDB = async () => {
   if (isConnected || isDbConnected()) return;
-  const uri = process.env.MONGODB_URI;
+  const uri = process.env.MONGODB_URI || process.env.MONGO_URI;
 
   if (!uri) {
-    console.warn('[Database] MONGODB_URI not configured. Operating in high-speed fallback memory storage mode.');
+    console.warn('[Database] MONGODB_URI/MONGO_URI not configured. Operating in high-speed fallback memory storage mode.');
     return;
   }
 
@@ -30,6 +30,7 @@ const connectDB = async () => {
     isConnected = true;
     console.log(`[Database] MongoDB Connected: ${conn.connection.host}`);
   } catch (error) {
+    isConnected = false;
     console.warn(`[Database] Remote MongoDB unreachable (${error.message}). High-speed persistent fallback active.`);
   }
 };

@@ -30,14 +30,19 @@ export const uploadAndAnalyzeResume = async (req, res) => {
     const analysisResult = await buildResumeKnowledgeProfile(extractedText);
 
     let existingCount = 0;
+    let dbReady = false;
+
     if (isDbConnected()) {
       try {
         existingCount = await Resume.countDocuments({ userId });
         await Resume.updateMany({ userId }, { isPrimary: false });
+        dbReady = true;
       } catch (dbErr) {
-        console.warn('[Resume Controller] DB count/update failed, using fallback:', dbErr.message);
+        console.warn('[Resume Controller] DB count/update failed, using fallback store:', dbErr.message);
       }
-    } else {
+    }
+
+    if (!dbReady) {
       existingCount = await memoryStore.countResumes(userId);
       await memoryStore.setPrimaryResume(userId, null);
     }
@@ -86,7 +91,7 @@ export const uploadAndAnalyzeResume = async (req, res) => {
       version: existingCount + 1,
     };
 
-    if (isDbConnected()) {
+    if (dbReady && isDbConnected()) {
       try {
         const newResume = await Resume.create(resumePayload);
 

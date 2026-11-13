@@ -124,23 +124,52 @@ export const queryGroq = async (prompt, systemMessage = "You are an expert techn
   throw lastError || new Error("All Groq models failed");
 };
 
+let geminiDisabled = false;
+let geminiDisabledReason = null;
+let geminiDisabledUntil = 0;
+
 /**
- * High-speed Gemini Provider (Primary Active Pipeline)
+ * High-speed Gemini Provider (Primary Active Pipeline) with fast-timeout & 429 circuit breaker
  */
 export const queryGemini = async (prompt) => {
   if (!geminiClient) throw new Error("Gemini client not configured");
+
+  if (geminiDisabled) {
+    if (Date.now() < geminiDisabledUntil) {
+      throw new Error(`Gemini circuit breaker active: ${geminiDisabledReason}`);
+    } else {
+      geminiDisabled = false;
+      geminiDisabledReason = null;
+    }
+  }
+
   const models = ['gemini-2.5-flash', 'gemini-3.8-flash'];
   let lastErr = null;
 
   for (const model of models) {
     try {
-      const response = await geminiClient.models.generateContent({
+      const callPromise = geminiClient.models.generateContent({
         model,
         contents: prompt,
       });
+
+      // Enforce strict 4-second timeout to prevent API backoff hangs
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`Gemini timeout on ${model}`)), 4000)
+      );
+
+      const response = await Promise.race([callPromise, timeoutPromise]);
       if (response && response.text) return response.text;
     } catch (err) {
       lastErr = err;
+      const msg = err.message || '';
+      if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('Quota exceeded')) {
+        geminiDisabled = true;
+        geminiDisabledReason = 'Daily Free Tier quota limit (20 req/day) exhausted';
+        geminiDisabledUntil = Date.now() + (10 * 60 * 1000); // 10 minutes circuit break
+        console.warn(`[AI Service] Gemini quota reached. Circuit breaker engaged for 10m.`);
+        break;
+      }
     }
   }
   throw lastErr || new Error("Gemini generation failed");
@@ -413,14 +442,74 @@ Return ONLY valid JSON.`;
     console.warn(`[AI Service] Smart AI voice turn failed (${err.message}). Using Domain Fallback.`);
   }
 
-  // Domain fallback response
+  // Dynamic domain-aware voice fallback engine calibrated by role, company & candidate transcript
+  const textSample = userSpokenText.toLowerCase();
+  const turnIndex = (history || []).filter(h => h.role === 'user').length + 1;
+
+  // Extract key concept mentioned by candidate if available
+  const concepts = [
+    'redis', 'kafka', 'database', 'cache', 'queue', 'microservice', 'api', 'state', 'component',
+    'docker', 'kubernetes', 'latency', 'consistency', 'partition', 'sharding', 'index', 'concurrency',
+    'token', 'auth', 'load balancer', 'async', 'hook', 'rendering', 'metric', 'monitoring'
+  ];
+  const detectedConcept = concepts.find(c => textSample.includes(c));
+
+  let speechResponse = '';
+  let nextQuestion = '';
+  let strengths = ['Direct and structured technical communication'];
+  let gaps = ['Edge case trade-offs and quantitative operational constraints'];
+  let score = 78;
+
+  if (roundType.toLowerCase().includes('behavioral') || roundType.toLowerCase().includes('leadership') || role.toLowerCase().includes('manager')) {
+    if (turnIndex === 1) {
+      speechResponse = `Welcome to your ${company} behavioral round for ${role}. Tell me about a high-stakes project where you disagreed with senior engineering decisions, and how you navigated the trade-offs to deliver.`;
+      nextQuestion = `Tell me about a high-stakes project where you disagreed with senior engineering decisions, and how you navigated the trade-offs to deliver.`;
+      score = 85;
+    } else {
+      speechResponse = `That provides good context on your engineering philosophy. Can you share a concrete instance where a deadline was at risk, what trade-offs you negotiated with product stakeholders, and the measurable outcome?`;
+      nextQuestion = `Can you share an instance where a project deadline was at risk, what trade-offs you negotiated, and the outcome?`;
+      strengths = ['Clear ownership', 'Team alignment awareness'];
+      gaps = ['Quantifiable metric impact on deliverables'];
+      score = 82;
+    }
+  } else if (role.toLowerCase().includes('frontend') || role.toLowerCase().includes('ui')) {
+    if (detectedConcept) {
+      speechResponse = `Good analysis on how you leverage ${detectedConcept}. At ${company}'s scale, how do you handle client-side state synchronization, preventing hydration mismatches and memory leaks during high-frequency real-time updates?`;
+      nextQuestion = `How do you handle client-side state synchronization, preventing hydration mismatches and memory leaks during high-frequency updates?`;
+    } else {
+      speechResponse = `Understood. For a customer-facing feature at ${company}, how would you architect performance budgets, code splitting, and Core Web Vitals optimizations for low-end mobile devices?`;
+      nextQuestion = `How would you architect performance budgets, code splitting, and Core Web Vitals optimizations for mobile devices?`;
+    }
+    strengths = ['Practical UI component understanding', 'Modern web architecture familiarity'];
+    gaps = ['Core Web Vitals telemetry', 'Micro-frontend boundary isolation'];
+    score = 80;
+  } else if (role.toLowerCase().includes('ai') || role.toLowerCase().includes('data')) {
+    speechResponse = `That makes sense for the baseline pipeline. When serving LLM or embedding inference at scale for ${company}, how do you evaluate semantic retrieval quality, monitor hallucination rates, and manage GPU memory latency bottlenecks?`;
+    nextQuestion = `How do you evaluate semantic retrieval quality, monitor hallucination rates, and manage GPU memory latency bottlenecks?`;
+    strengths = ['Strong awareness of AI pipeline stages'];
+    gaps = ['Vector index quantization', 'Latency degradation under peak load'];
+    score = 84;
+  } else {
+    // Systems / Full Stack / Backend standard
+    if (detectedConcept) {
+      speechResponse = `Good explanation regarding ${detectedConcept}. Building on that, how would you ensure strict idempotency and zero data loss if a network partition or failover happens mid-transaction at ${company}?`;
+      nextQuestion = `How would you ensure strict idempotency and zero data loss if a network partition occurs mid-transaction?`;
+    } else {
+      speechResponse = `Understood. When this service scales to handle 50,000 requests per second at ${company}, where will the primary throughput bottlenecks emerge, and how will you partition data to prevent hot spots?`;
+      nextQuestion = `When scaling to 50,000 requests per second, where will the primary bottlenecks emerge, and how will you partition data?`;
+    }
+    strengths = ['Solid high-level systems reasoning', 'Good architectural clarity'];
+    gaps = ['Distributed consensus failure modes', 'Partition tolerance specifics'];
+    score = 81;
+  }
+
   return {
-    speechResponse: `Good points on the core mechanism. How would you handle state synchronization and failover if a network partition isolates the primary node?`,
-    feedbackSnippet: "Candidate demonstrated working knowledge of system components. Needs to dive deeper into failover edge cases and partition tolerance.",
-    nextQuestion: "How would you handle state synchronization and failover if a network partition isolates the primary node?",
-    score: 82,
-    strengths: ["Clear high-level architectural communication", "Solid foundational concepts"],
-    gaps: ["Split-brain resolution", "Explicit failover latency"]
+    speechResponse,
+    feedbackSnippet: `Candidate provided a clear response addressing the core prompt. Follow-up directed towards ${role} depth at ${company}.`,
+    nextQuestion,
+    score,
+    strengths,
+    gaps
   };
 };
 

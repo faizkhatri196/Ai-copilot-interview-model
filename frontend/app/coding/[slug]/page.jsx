@@ -96,10 +96,32 @@ export default function CodingWorkspacePage() {
           </div>
         </div>
 
+        {/* Mobile Tab Switcher */}
+        <div className="flex lg:hidden items-center p-1 rounded-xl bg-brand-card border border-border">
+          <button
+            onClick={() => setActiveTab('description')}
+            className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
+              activeTab === 'description' ? 'bg-brand-purple text-white shadow-md' : 'text-content-secondary hover:text-white'
+            }`}
+          >
+            Problem Description
+          </button>
+          <button
+            onClick={() => setActiveTab('editor')}
+            className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
+              activeTab === 'editor' ? 'bg-brand-purple text-white shadow-md' : 'text-content-secondary hover:text-white'
+            }`}
+          >
+            Code Editor & Tests
+          </button>
+        </div>
+
         {/* 2-Column Split Workspace */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-[calc(100vh-180px)]">
           {/* Left Panel: Problem Spec */}
-          <div className="p-6 rounded-3xl bg-brand-card border border-border flex flex-col justify-between overflow-y-auto max-h-[750px]">
+          <div className={`p-4 sm:p-6 rounded-3xl bg-brand-card border border-border flex flex-col justify-between overflow-y-auto max-h-[750px] ${
+            activeTab === 'editor' ? 'hidden lg:flex' : 'flex'
+          }`}>
             <div className="space-y-6">
               <div>
                 <div className="flex items-center gap-2 mb-2">
@@ -149,7 +171,9 @@ export default function CodingWorkspacePage() {
           </div>
 
           {/* Right Panel: Editor & Isolated Runner */}
-          <div className="flex flex-col rounded-3xl bg-brand-card border border-border overflow-hidden">
+          <div className={`flex flex-col rounded-3xl bg-brand-card border border-border overflow-hidden min-h-[450px] ${
+            activeTab === 'description' ? 'hidden lg:flex' : 'flex'
+          }`}>
             {/* Editor Action Bar */}
             <div className="h-14 px-4 bg-background-secondary border-b border-border flex items-center justify-between">
               <div className="flex items-center gap-3">

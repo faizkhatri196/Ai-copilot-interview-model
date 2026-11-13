@@ -129,17 +129,17 @@ export default function ResumeIntelligencePage() {
         </div>
 
         {/* Upload Form Box */}
-        <div className="p-6 rounded-3xl bg-brand-card border border-border space-y-4">
-          <h3 className="text-base font-bold text-white flex items-center gap-2">
+        <div className="p-4 sm:p-6 rounded-3xl bg-brand-card border border-border space-y-4">
+          <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
             <Upload className="h-4 w-4 text-brand-accent" />
             Upload New Resume or Paste Content
           </h3>
 
           <form onSubmit={submitResume} className="space-y-4">
-            <div className="flex flex-col sm:flex-row items-center gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
               <label className="w-full sm:w-auto cursor-pointer px-4 py-2.5 rounded-xl bg-background-secondary border border-border hover:border-brand-purple text-xs font-semibold text-content-secondary hover:text-white flex items-center justify-center gap-2 transition-colors">
                 <FileText className="h-4 w-4" />
-                <span>{fileName || 'Select File (PDF / DOCX / TXT)'}</span>
+                <span className="truncate max-w-[240px]">{fileName || 'Select File (PDF / DOCX / TXT)'}</span>
                 <input type="file" accept=".txt,.pdf,.docx" onChange={handleFileUpload} className="hidden" />
               </label>
 
@@ -151,14 +151,14 @@ export default function ResumeIntelligencePage() {
               value={rawText}
               onChange={(e) => setRawText(e.target.value)}
               placeholder="Paste candidate resume text here (Projects, Experience, Skills, Education)..."
-              className="w-full bg-background-secondary border border-border rounded-2xl p-4 text-xs text-white placeholder-content-muted focus:outline-none focus:border-brand-purple"
+              className="w-full bg-background-secondary border border-border rounded-2xl p-3 sm:p-4 text-xs text-white placeholder-content-muted focus:outline-none focus:border-brand-purple"
             />
 
             <div className="flex justify-end">
               <button
                 type="submit"
                 disabled={uploading || !rawText.trim()}
-                className="px-6 py-2.5 rounded-xl bg-purple-gradient text-white text-xs font-bold shadow-card-glow hover:opacity-95 disabled:opacity-50 flex items-center gap-2"
+                className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-purple-gradient text-white text-xs font-bold shadow-card-glow hover:opacity-95 disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><span>Run Deep Intelligence</span><ArrowRight className="h-4 w-4" /></>}
               </button>
@@ -170,16 +170,16 @@ export default function ResumeIntelligencePage() {
         {activeResume ? (
           <div className="space-y-6">
             {/* Launch Resume Interview Action Card */}
-            <div className="p-6 rounded-3xl bg-brand-card border border-brand-accent/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-card-glow">
+            <div className="p-4 sm:p-6 rounded-3xl bg-brand-card border border-brand-accent/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-card-glow">
               <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-brand-accent" />
-                  <h3 className="text-base font-bold text-white">Adaptive Resume Interview Ready</h3>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-system-success/15 text-system-success font-bold uppercase">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Sparkles className="h-4 w-4 text-brand-accent shrink-0" />
+                  <h3 className="text-sm sm:text-base font-bold text-white">Adaptive Resume Interview Ready</h3>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-system-success/15 text-system-success font-bold uppercase shrink-0">
                     Profile Linked
                   </span>
                 </div>
-                <p className="text-xs text-content-secondary max-w-2xl">
+                <p className="text-xs text-content-secondary max-w-2xl leading-relaxed">
                   Launch a multi-turn deep dive simulation into your featured project claims ({activeResume.parsedData?.projects?.[0]?.title || 'Architecture'}). The interviewer will probe your design decisions, trade-offs, and failure recoveries.
                 </p>
               </div>
@@ -187,7 +187,7 @@ export default function ResumeIntelligencePage() {
               <button
                 onClick={launchResumeInterview}
                 disabled={startingInterview}
-                className="px-6 py-3 rounded-2xl bg-purple-gradient text-white text-xs font-bold shadow-card-glow hover:opacity-95 flex items-center gap-2 shrink-0 disabled:opacity-50"
+                className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-purple-gradient text-white text-xs font-bold shadow-card-glow hover:opacity-95 flex items-center justify-center gap-2 shrink-0 disabled:opacity-50"
               >
                 {startingInterview ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4 fill-current" />}
                 <span>Launch Adaptive Resume Interview</span>
@@ -195,35 +195,35 @@ export default function ResumeIntelligencePage() {
             </div>
 
             {/* Top Score Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-              <div className="p-6 rounded-3xl bg-brand-card border border-border space-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+              <div className="p-4 sm:p-6 rounded-3xl bg-brand-card border border-border space-y-2">
                 <span className="text-xs font-semibold text-content-secondary uppercase tracking-wider">Technical Strength</span>
-                <p className="text-3xl font-black text-system-success">
+                <p className="text-2xl sm:text-3xl font-black text-system-success">
                   {activeResume.analysis?.technicalStrengthRating || 85}%
                 </p>
                 <p className="text-[11px] text-content-secondary">Demonstrated practical capability index</p>
               </div>
 
-              <div className="p-6 rounded-3xl bg-brand-card border border-border space-y-2">
+              <div className="p-4 sm:p-6 rounded-3xl bg-brand-card border border-border space-y-2">
                 <span className="text-xs font-semibold text-content-secondary uppercase tracking-wider">Hiring Loop Readiness</span>
-                <p className="text-3xl font-black text-brand-accent">
+                <p className="text-2xl sm:text-3xl font-black text-brand-accent">
                   {activeResume.analysis?.overallReadinessRating || 82}%
                 </p>
                 <p className="text-[11px] text-content-secondary">Alignment with top tier benchmarks</p>
               </div>
 
-              <div className="p-6 rounded-3xl bg-brand-card border border-border space-y-2">
+              <div className="p-4 sm:p-6 rounded-3xl bg-brand-card border border-border space-y-2">
                 <span className="text-xs font-semibold text-content-secondary uppercase tracking-wider">Resume Version</span>
-                <p className="text-3xl font-black text-white">v{activeResume.version || 1}</p>
-                <p className="text-[11px] text-content-secondary">{activeResume.fileName}</p>
+                <p className="text-2xl sm:text-3xl font-black text-white">v{activeResume.version || 1}</p>
+                <p className="text-[11px] text-content-secondary truncate">{activeResume.fileName}</p>
               </div>
             </div>
 
             {/* Practical Work Evidence & Gaps */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="p-6 rounded-3xl bg-brand-card border border-border space-y-4">
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-system-success" />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+              <div className="p-4 sm:p-6 rounded-3xl bg-brand-card border border-border space-y-4">
+                <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-system-success shrink-0" />
                   Demonstrated Practical Evidence
                 </h3>
                 <p className="text-xs text-content-secondary leading-relaxed">
@@ -243,9 +243,9 @@ export default function ResumeIntelligencePage() {
                 </div>
               </div>
 
-              <div className="p-6 rounded-3xl bg-brand-card border border-border space-y-4">
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4 text-system-warning" />
+              <div className="p-4 sm:p-6 rounded-3xl bg-brand-card border border-border space-y-4">
+                <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-system-warning shrink-0" />
                   Missing Critical Competencies & Suggested Improvements
                 </h3>
                 <ul className="space-y-2">
@@ -254,7 +254,7 @@ export default function ResumeIntelligencePage() {
                     'Highlight distributed caching and event-driven patterns in backend projects.'
                   ]).map((imp, idx) => (
                     <li key={idx} className="flex items-start gap-2 text-xs text-content-secondary">
-                      <span className="text-system-warning font-bold">•</span>
+                      <span className="text-system-warning font-bold shrink-0">•</span>
                       <span>{imp}</span>
                     </li>
                   ))}
@@ -263,9 +263,9 @@ export default function ResumeIntelligencePage() {
             </div>
 
             {/* Tailored Interview Questions Generated from Resume */}
-            <div className="p-6 rounded-3xl bg-brand-card border border-border space-y-4">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <HelpCircle className="h-4 w-4 text-brand-purple" />
+            <div className="p-4 sm:p-6 rounded-3xl bg-brand-card border border-border space-y-4">
+              <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+                <HelpCircle className="h-4 w-4 text-brand-purple shrink-0" />
                 Tailored Questions Generated from Resume Projects
               </h3>
               <p className="text-xs text-content-secondary">

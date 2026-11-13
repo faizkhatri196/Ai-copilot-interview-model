@@ -136,3 +136,4 @@ For enterprise deployments with multi-tenant untrusted execution:
 1. **gVisor / Firecracker MicroVMs**: Upgrade subprocess isolation to Docker/gVisor runtime sandbox for complete Linux kernel syscall namespace isolation.
 2. **Secret Vaults**: Utilize AWS Secrets Manager or Google Cloud Secret Manager instead of filesystem `.env` files.
 3. **WAF Rules**: Enable Cloudflare Turnstile or Cloudflare WAF on public API endpoints to suppress DDoS attacks.
+

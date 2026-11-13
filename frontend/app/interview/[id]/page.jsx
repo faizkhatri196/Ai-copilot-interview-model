@@ -19,7 +19,9 @@ import {
   Pause,
   Play,
   Layers,
-  Award
+  Award,
+  Mic,
+  MicOff
 } from 'lucide-react';
 import api from '../../../lib/axios';
 import socket from '../../../lib/socket';
@@ -39,7 +41,61 @@ export default function InterviewRoomPage({ params }) {
   const [clarificationModal, setClarificationModal] = useState(false);
   const [clarificationQuery, setClarificationQuery] = useState('');
   const [clarificationLoading, setClarificationLoading] = useState(false);
+  const [isDictating, setIsDictating] = useState(false);
   const scrollRef = useRef(null);
+  const dictationRef = useRef(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const recog = new SpeechRecognition();
+      recog.continuous = true;
+      recog.interimResults = true;
+      recog.lang = 'en-US';
+
+      recog.onresult = (event) => {
+        let current = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          current += event.results[i][0].transcript;
+        }
+        if (current.trim()) {
+          setAnswer(prev => {
+            const trimmed = prev.trim();
+            return trimmed ? `${trimmed} ${current.trim()}` : current.trim();
+          });
+        }
+      };
+
+      recog.onerror = (e) => {
+        console.warn('Dictation recognition error:', e);
+        setIsDictating(false);
+      };
+
+      recog.onend = () => {
+        setIsDictating(false);
+      };
+
+      dictationRef.current = recog;
+    }
+  }, []);
+
+  const toggleDictation = () => {
+    if (!dictationRef.current) {
+      alert('Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.');
+      return;
+    }
+    if (isDictating) {
+      dictationRef.current.stop();
+      setIsDictating(false);
+    } else {
+      try {
+        dictationRef.current.start();
+        setIsDictating(true);
+      } catch (e) {
+        console.warn('Dictation start failed:', e);
+      }
+    }
+  };
 
   useEffect(() => {
     const init = async () => {
@@ -292,46 +348,46 @@ export default function InterviewRoomPage({ params }) {
     <AppLayout>
       <div className="space-y-4 max-w-5xl mx-auto">
         {/* Session Topbar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl bg-brand-card border border-border gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 sm:p-4 rounded-2xl bg-brand-card border border-border gap-3">
           <div className="flex items-center gap-3">
-            <Link href="/dashboard" className="p-2 rounded-xl bg-background-secondary border border-border text-content-secondary hover:text-white">
+            <Link href="/dashboard" className="p-2 rounded-xl bg-background-secondary border border-border text-content-secondary hover:text-white shrink-0">
               <ArrowLeft className="h-4 w-4" />
             </Link>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base font-bold text-white leading-tight">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-sm sm:text-base font-bold text-white leading-tight truncate">
                   {interview.company || 'Tech Leader'} • {interview.role}
                 </h1>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-brand-purple/20 text-brand-accent font-bold uppercase">
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-brand-purple/20 text-brand-accent font-bold uppercase shrink-0">
                   Adaptive 2.0
                 </span>
               </div>
-              <p className="text-[11px] text-content-secondary">
+              <p className="text-[10px] sm:text-[11px] text-content-secondary truncate">
                 {interview.roundType} • {interview.difficulty} ({interview.interviewerPersonality})
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-between sm:justify-end w-full sm:w-auto">
             <button
               onClick={() => setClarificationModal(true)}
-              className="px-3 py-1.5 rounded-xl bg-background-secondary border border-border text-content-secondary hover:text-white text-xs font-semibold flex items-center gap-1.5"
+              className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-background-secondary border border-border text-content-secondary hover:text-white text-xs font-semibold flex items-center gap-1.5"
               title="Ask interviewer for scope/parameter clarification"
             >
               <HelpCircle className="h-3.5 w-3.5 text-brand-accent" />
-              <span>Ask Clarification</span>
+              <span>Clarification</span>
             </button>
 
             <button
               onClick={handleSkip}
-              className="px-3 py-1.5 rounded-xl bg-background-secondary border border-border text-content-secondary hover:text-system-warning text-xs font-semibold flex items-center gap-1.5"
+              className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-background-secondary border border-border text-content-secondary hover:text-system-warning text-xs font-semibold flex items-center gap-1.5"
               title="Skip this question"
             >
               <FastForward className="h-3.5 w-3.5" />
-              <span>Skip Topic</span>
+              <span>Skip</span>
             </button>
 
-            <span className="text-xs text-brand-accent font-semibold px-3 py-1 rounded-full bg-brand-purple/20 border border-brand-accent/30">
+            <span className="text-xs text-brand-accent font-semibold px-2.5 sm:px-3 py-1 rounded-full bg-brand-purple/20 border border-brand-accent/30 shrink-0">
               Turn {chat.filter(m => m.role === 'user').length + 1}
             </span>
           </div>
@@ -340,7 +396,7 @@ export default function InterviewRoomPage({ params }) {
         {/* Chat Stream Window */}
         <div
           ref={scrollRef}
-          className="p-6 rounded-3xl bg-brand-card border border-border min-h-[500px] max-h-[620px] overflow-y-auto space-y-6 shadow-modal-glow scrollbar-thin"
+          className="p-3.5 sm:p-6 rounded-3xl bg-brand-card border border-border h-[52vh] sm:h-[58vh] min-h-[340px] max-h-[620px] overflow-y-auto space-y-4 sm:space-y-6 shadow-modal-glow scrollbar-thin"
         >
           {chat.map((msg, idx) => (
             <div
@@ -419,14 +475,16 @@ export default function InterviewRoomPage({ params }) {
           )}
         </div>
 
-        {/* Answer Submission Form */}
+        {/* Answer Submission Form with Live Voice Dictation */}
         <form onSubmit={submitAnswer} className="relative">
           <textarea
             value={answer}
             onChange={(e) => setAnswer(e.target.value)}
             disabled={isAiTyping}
-            placeholder="Structure your answer clearly with reasoning, trade-offs, and failure recovery... (Press Enter to submit, Shift+Enter for newline)"
-            className="w-full bg-brand-card border border-border rounded-2xl p-4 pr-16 text-xs sm:text-sm text-white placeholder-content-muted focus:outline-none focus:border-brand-purple h-28 resize-none leading-relaxed disabled:opacity-50"
+            placeholder={isDictating ? "Listening to your voice... Speak your technical explanation..." : "Structure your answer with reasoning, trade-offs, and failure recovery... (Press Enter to submit, or use mic)"}
+            className={`w-full bg-brand-card border rounded-2xl p-4 pr-24 sm:pr-28 text-xs sm:text-sm text-white placeholder-content-muted focus:outline-none transition-all h-28 resize-none leading-relaxed disabled:opacity-50 ${
+              isDictating ? 'border-system-success ring-1 ring-system-success/50' : 'border-border focus:border-brand-purple'
+            }`}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -435,14 +493,30 @@ export default function InterviewRoomPage({ params }) {
             }}
           />
 
-          <button
-            type="submit"
-            disabled={isAiTyping || !answer.trim()}
-            className="absolute right-4 bottom-4 p-3 rounded-xl bg-purple-gradient text-white shadow-card-glow hover:opacity-95 disabled:opacity-40 transition-all flex items-center gap-1.5"
-            title="Send Answer"
-          >
-            <Send className="h-4 w-4" />
-          </button>
+          <div className="absolute right-3 bottom-3 flex items-center gap-1.5 sm:gap-2">
+            <button
+              type="button"
+              onClick={toggleDictation}
+              disabled={isAiTyping}
+              className={`p-2.5 rounded-xl border transition-all ${
+                isDictating 
+                  ? 'bg-system-success text-black border-system-success animate-pulse shadow-md' 
+                  : 'bg-background-secondary border-border text-content-secondary hover:text-white hover:border-brand-purple'
+              }`}
+              title={isDictating ? "Stop voice dictation" : "Dictate your answer via voice"}
+            >
+              {isDictating ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+            </button>
+
+            <button
+              type="submit"
+              disabled={isAiTyping || !answer.trim()}
+              className="p-2.5 rounded-xl bg-purple-gradient text-white shadow-card-glow hover:opacity-95 disabled:opacity-40 transition-all flex items-center gap-1.5"
+              title="Send Answer"
+            >
+              <Send className="h-4 w-4" />
+            </button>
+          </div>
         </form>
 
         {/* Clarification Modal */}

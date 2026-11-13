@@ -89,3 +89,4 @@ To support 1,000+ simultaneous real cloud LLM calls without rate limiting:
 1. **Tier 1 Enterprise Quota**: Enable Google Cloud Vertex AI or Groq Production Tier with provisioned throughput (TPM/RPM limits above 50,000).
 2. **Asynchronous Evaluation Queue**: Offload post-turn scoring and summary generation to background workers via Redis/BullMQ.
 3. **Multi-Region Load Balancing**: Distribute candidate sessions across 3+ horizontally autoscaled backend worker instances behind AWS ALB or Cloudflare.
+

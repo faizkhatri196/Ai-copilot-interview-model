@@ -352,38 +352,38 @@ export default function LiveVoiceInterviewPage() {
         {/* Voice Stage Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-[calc(100vh-250px)]">
           {/* Main Visualizer Stage */}
-          <div className="lg:col-span-2 p-8 rounded-3xl bg-brand-card border border-border flex flex-col items-center justify-between relative overflow-hidden">
+          <div className="lg:col-span-2 p-4 sm:p-6 lg:p-8 rounded-3xl bg-brand-card border border-border flex flex-col items-center justify-between relative overflow-hidden min-h-[460px]">
             {/* Visualizer Aura Glow */}
             <div className={`absolute w-80 h-80 rounded-full blur-[100px] pointer-events-none transition-all duration-700 ${
               isSpeaking ? 'bg-brand-purple/40 scale-125' : isListening ? 'bg-system-success/30 scale-110' : 'bg-brand-cardDark'
             }`} />
 
-            <div className="w-full flex items-center justify-between text-xs text-content-secondary relative z-10">
+            <div className="w-full flex items-center justify-between text-xs text-content-secondary relative z-10 gap-2 flex-wrap">
               <span className="flex items-center gap-2">
                 <span className={`w-2.5 h-2.5 rounded-full ${isStarted ? (isSpeaking ? 'bg-brand-accent animate-ping' : isListening ? 'bg-system-success animate-pulse' : 'bg-system-success') : 'bg-content-muted'}`} />
                 {isStarted
                   ? (isSpeaking ? 'AI Speaking aloud...' : isListening ? 'Listening to Candidate (Speak now)...' : 'AI Evaluating...')
                   : 'Ready to Start Voice Session'}
               </span>
-              <span className="font-bold text-white">
+              <span className="font-bold text-white shrink-0">
                 Turn {turnCount} • Score: <span className="text-brand-accent">{currentScore}/100</span>
               </span>
             </div>
 
             {/* AI Avatar Pulse Ring */}
-            <div className="relative z-10 flex flex-col items-center justify-center my-8">
-              <div className={`w-36 h-36 rounded-full bg-sidebar flex items-center justify-center shadow-purple-glow transition-all duration-500 ${
+            <div className="relative z-10 flex flex-col items-center justify-center my-6 sm:my-8">
+              <div className={`w-28 sm:w-36 h-28 sm:h-36 rounded-full bg-sidebar flex items-center justify-center shadow-purple-glow transition-all duration-500 ${
                 isSpeaking
                   ? 'scale-110 ring-8 ring-brand-purple/40 shadow-card-glow'
                   : isListening
                   ? 'ring-8 ring-system-success/30 scale-105'
                   : ''
               }`}>
-                <Bot className="h-16 w-16 text-white" />
+                <Bot className="h-12 sm:h-16 w-12 sm:w-16 text-white" />
               </div>
 
               {/* Dynamic Sound Wave Bars */}
-              <div className="flex items-center gap-2 mt-8 h-10">
+              <div className="flex items-center gap-1.5 sm:gap-2 mt-6 sm:mt-8 h-10">
                 {[12, 28, 40, 24, 48, 32, 16, 44, 20, 10, 36, 18].map((h, i) => (
                   <div
                     key={i}
