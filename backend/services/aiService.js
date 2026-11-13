@@ -19,7 +19,7 @@ if (process.env.GEMINI_API_KEY) {
 /**
  * Resilient query to Groq API with automatic model failover
  */
-const queryGroq = async (prompt, systemMessage = "You are an expert technical interviewer.") => {
+export const queryGroq = async (prompt, systemMessage = "You are an expert technical interviewer.") => {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("GROQ_API_KEY missing");
 
@@ -71,7 +71,7 @@ const queryGroq = async (prompt, systemMessage = "You are an expert technical in
 /**
  * Query Gemini Fallback with automatic model failover
  */
-const queryGemini = async (prompt) => {
+export const queryGemini = async (prompt) => {
   if (!geminiClient) throw new Error("Gemini client not configured");
   const models = ['gemini-2.5-flash', 'gemini-1.5-flash'];
   let lastErr = null;
@@ -93,7 +93,7 @@ const queryGemini = async (prompt) => {
 /**
  * Clean & Parse JSON safely
  */
-const cleanJson = (text) => {
+export const cleanJson = (text) => {
   if (!text || typeof text !== 'string') return null;
   const cleaned = text.replace(/```json\n?|\n?```/g, '').trim();
   try {

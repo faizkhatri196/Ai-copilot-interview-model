@@ -72,7 +72,13 @@ const companySchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
       },
+      publicationDate: Date,
     }],
+    cacheExpiresAt: {
+      type: Date,
+      default: () => new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hour TTL cache
+      index: true,
+    },
   },
   verifiedHiringActive: {
     type: Boolean,
@@ -81,6 +87,8 @@ const companySchema = new mongoose.Schema({
 }, {
   timestamps: true,
 });
+
+companySchema.index({ 'research.lastChecked': -1 });
 
 const Company = mongoose.model('Company', companySchema);
 export default Company;

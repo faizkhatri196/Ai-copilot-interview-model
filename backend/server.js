@@ -33,12 +33,43 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Health Check
+// Health Check & Performance Monitoring
+const serverStartTime = Date.now();
+let totalRequestsHandled = 0;
+
+app.use((req, res, next) => {
+  totalRequestsHandled++;
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    if (duration > 2000) {
+      console.warn(`[Slow Request] ${req.method} ${req.originalUrl} took ${duration}ms`);
+    }
+  });
+  next();
+});
+
 app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
     platform: 'AI Interview Intelligence',
     version: '2.0.0-ultra-elite',
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/health/metrics', (req, res) => {
+  const memory = process.memoryUsage();
+  res.json({
+    status: 'healthy',
+    uptimeSeconds: Math.floor((Date.now() - serverStartTime) / 1000),
+    totalRequestsHandled,
+    memory: {
+      rssMb: Math.round(memory.rss / 1024 / 1024),
+      heapTotalMb: Math.round(memory.heapTotal / 1024 / 1024),
+      heapUsedMb: Math.round(memory.heapUsed / 1024 / 1024),
+    },
+    activeSockets: io.engine.clientsCount || 0,
     timestamp: new Date().toISOString()
   });
 });

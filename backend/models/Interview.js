@@ -1,10 +1,179 @@
 import mongoose from 'mongoose';
 
+export const INTERVIEW_STATES = [
+  'CREATED',
+  'INITIALIZING',
+  'QUESTION_PENDING',
+  'WAITING_FOR_CANDIDATE',
+  'PROCESSING_RESPONSE',
+  'ANALYZING_RESPONSE',
+  'GENERATING_FOLLOWUP',
+  'GENERATING_NEXT_QUESTION',
+  'QUESTION_READY',
+  'ROUND_TRANSITION',
+  'COMPLETED',
+  'PAUSED',
+  'FAILED'
+];
+
+const questionSchema = new mongoose.Schema({
+  questionId: {
+    type: String,
+    required: true,
+    index: true,
+  },
+  questionText: {
+    type: String,
+    required: true,
+  },
+  questionType: {
+    type: String,
+    enum: ['PRIMARY', 'FOLLOW_UP', 'CLARIFICATION', 'PROJECT_DRILL_DOWN', 'CHALLENGE'],
+    default: 'PRIMARY',
+  },
+  parentQuestionId: {
+    type: String,
+    default: null,
+  },
+  category: {
+    type: String,
+    default: 'General Technical',
+  },
+  topic: {
+    type: String,
+    default: 'Software Engineering',
+  },
+  difficulty: {
+    type: String,
+    enum: ['Fresher', 'Intermediate', 'Senior', 'Staff'],
+    default: 'Intermediate',
+  },
+  expectedCriteria: {
+    type: String,
+    default: '',
+  },
+  timeLimitSeconds: {
+    type: Number,
+    default: 180,
+  },
+  status: {
+    type: String,
+    enum: ['ASKED', 'ANSWERED', 'SKIPPED'],
+    default: 'ASKED',
+  },
+  followUpQuestions: [String],
+  sourceEvidence: {
+    type: String,
+    default: '',
+  },
+  askedAt: {
+    type: Date,
+    default: Date.now,
+  },
+});
+
+const answerSchema = new mongoose.Schema({
+  answerId: {
+    type: String,
+    required: true,
+  },
+  questionId: {
+    type: String,
+    required: true,
+  },
+  idempotencyKey: {
+    type: String,
+    index: true,
+  },
+  answerText: {
+    type: String,
+    default: '',
+  },
+  audioTranscript: {
+    type: String,
+    default: '',
+  },
+  codeSubmission: {
+    code: String,
+    language: String,
+    testsPassed: Number,
+    testsTotal: Number,
+    runtimeMs: Number,
+    memoryMb: Number,
+    status: String,
+    errorMessage: String,
+  },
+  evaluation: {
+    score: Number,
+    technicalCorrectness: {
+      score: Number,
+      notes: String,
+    },
+    communicationAndClarity: {
+      score: Number,
+      notes: String,
+    },
+    depthAndReasoning: {
+      score: Number,
+      notes: String,
+    },
+    codeQuality: {
+      score: Number,
+      notes: String,
+    },
+    feedback: String,
+    correctness: String,
+    clarity: String,
+    missedConcepts: [String],
+    positiveObservations: [String],
+    suggestedBetterAnswer: String,
+  },
+  durationSeconds: {
+    type: Number,
+    default: 0,
+  },
+  submittedAt: {
+    type: Date,
+    default: Date.now,
+  },
+});
+
+const stateHistorySchema = new mongoose.Schema({
+  fromState: {
+    type: String,
+    enum: INTERVIEW_STATES,
+  },
+  toState: {
+    type: String,
+    enum: INTERVIEW_STATES,
+    required: true,
+  },
+  trigger: {
+    type: String,
+    default: 'SYSTEM_EVENT',
+  },
+  timestamp: {
+    type: Date,
+    default: Date.now,
+  },
+  metadata: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {},
+  },
+});
+
 const interviewSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     required: true,
     ref: 'User',
+    index: true,
+  },
+  sessionId: {
+    type: String,
+    unique: true,
+    sparse: true,
+    index: true,
   },
   role: {
     type: String,
@@ -16,7 +185,7 @@ const interviewSchema = new mongoose.Schema({
   },
   difficulty: {
     type: String,
-    enum: ['Beginner', 'Intermediate', 'Advanced'],
+    enum: ['Fresher', 'Intermediate', 'Senior', 'Staff', 'Beginner', 'Advanced'],
     default: 'Intermediate',
   },
   interviewerPersonality: {
@@ -24,11 +193,10 @@ const interviewSchema = new mongoose.Schema({
     enum: ['Professional', 'Friendly', 'Strict', 'Senior Engineer', 'Behavioral'],
     default: 'Professional',
   },
-  // Supported rounds: Online Assessment, DSA Coding, Technical Fundamentals, Resume-Based, Company-Specific, System Design, Behavioral, HR, Voice
   roundType: {
     type: String,
     enum: [
-      'Technical Interview', // Legacy compatibility
+      'Technical Interview',
       'Online Assessment',
       'DSA Coding Interview',
       'Technical Fundamentals',
@@ -40,7 +208,7 @@ const interviewSchema = new mongoose.Schema({
       'AI Voice Interview',
       'Full Multi-Round Simulation'
     ],
-    default: 'Technical Interview',
+    default: 'Technical Fundamentals',
   },
   roundIndex: {
     type: Number,
@@ -50,67 +218,46 @@ const interviewSchema = new mongoose.Schema({
     type: Number,
     default: 1,
   },
+  currentState: {
+    type: String,
+    enum: INTERVIEW_STATES,
+    default: 'INITIALIZING',
+    index: true,
+  },
+  stateHistory: [stateHistorySchema],
   status: {
     type: String,
-    enum: ['In Progress', 'Completed', 'Paused', 'Cancelled'],
+    enum: ['In Progress', 'Completed', 'Paused', 'Cancelled', 'Failed'],
     default: 'In Progress',
+    index: true,
   },
-  questions: [{
-    questionId: String,
-    questionText: String,
-    category: String,
-    topic: String,
-    difficulty: String,
-    expectedCriteria: String,
-    timeLimitSeconds: Number,
-    followUpQuestions: [String],
-    sourceEvidence: String,
+  currentQuestionId: {
+    type: String,
+    default: null,
+  },
+  questions: [questionSchema],
+  answers: [answerSchema],
+  processedIdempotencyKeys: [{
+    type: String,
+    index: true,
   }],
-  answers: [{
-    questionIndex: Number,
-    answerText: String,
-    audioTranscript: String,
-    codeSubmission: {
-      code: String,
-      language: String,
-      testsPassed: Number,
-      testsTotal: Number,
-      runtimeMs: Number,
-      memoryMb: Number,
-      status: String, // 'Accepted', 'Wrong Answer', 'Time Limit Exceeded', 'Runtime Error', 'Compile Error'
-      errorMessage: String,
+  // Compact rolling memory context to minimize AI token payload
+  compactContext: {
+    candidateSummary: String,
+    topicsCovered: [String],
+    demonstratedStrengths: [String],
+    criticalWeaknesses: [String],
+    lastDrillDownTopic: String,
+    consecutivePoorAnswers: {
+      type: Number,
+      default: 0,
     },
-    evaluation: {
-      score: Number,
-      technicalCorrectness: {
-        score: Number,
-        notes: String,
-      },
-      communicationAndClarity: {
-        score: Number,
-        notes: String,
-      },
-      depthAndReasoning: {
-        score: Number,
-        notes: String,
-      },
-      codeQuality: {
-        score: Number,
-        notes: String,
-      },
-      feedback: String,
-      correctness: String,
-      clarity: String,
-      missedConcepts: [String],
-      positiveObservations: [String],
-      suggestedBetterAnswer: String,
+    consecutiveStrongAnswers: {
+      type: Number,
+      default: 0,
     },
-    durationSeconds: Number,
-    submittedAt: {
-      type: Date,
-      default: Date.now,
-    },
-  }],
+    resumeAnchorProject: String,
+  },
   finalScore: {
     type: Number,
     default: 0,
@@ -134,9 +281,19 @@ const interviewSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  version: {
+    type: Number,
+    default: 1,
+  },
 }, {
   timestamps: true,
 });
+
+// Compound indexes for high-throughput queries
+interviewSchema.index({ userId: 1, createdAt: -1 });
+interviewSchema.index({ userId: 1, status: 1 });
+interviewSchema.index({ userId: 1, roundType: 1 });
+interviewSchema.index({ company: 1, role: 1 });
 
 const Interview = mongoose.model('Interview', interviewSchema);
 export default Interview;

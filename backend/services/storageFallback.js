@@ -34,12 +34,32 @@ if (fs.existsSync(STORE_FILE)) {
   }
 }
 
+let persistTimer = null;
+let isPersisting = false;
+let pendingPersist = false;
+
 const persist = () => {
-  try {
-    fs.writeFileSync(STORE_FILE, JSON.stringify(store, null, 2), 'utf8');
-  } catch (e) {
-    // Non-fatal if filesystem is read-only
-  }
+  if (persistTimer) return;
+  persistTimer = setTimeout(async () => {
+    persistTimer = null;
+    if (isPersisting) {
+      pendingPersist = true;
+      return;
+    }
+    isPersisting = true;
+    try {
+      const data = JSON.stringify(store);
+      await fs.promises.writeFile(STORE_FILE, data, 'utf8');
+    } catch (e) {
+      // Non-fatal if filesystem is read-only
+    } finally {
+      isPersisting = false;
+      if (pendingPersist) {
+        pendingPersist = false;
+        persist();
+      }
+    }
+  }, 100);
 };
 
 const generateId = () => {
@@ -184,6 +204,33 @@ export const memoryStore = {
         r.isPrimary = String(r._id) === String(resumeId);
       }
     });
+    persist();
+  },
+
+  async findPrimaryResume(userId) {
+    if (!store.resumes) return null;
+    return store.resumes.find(r => String(r.userId) === String(userId) && r.isPrimary) ||
+           store.resumes.find(r => String(r.userId) === String(userId)) || null;
+  },
+
+  // Research Cache (in-memory + disk with TTL)
+  getCompanyResearch(slug) {
+    if (!store.companyResearch) store.companyResearch = {};
+    const item = store.companyResearch[slug.toLowerCase()];
+    if (!item) return null;
+    if (item.expiresAt && Date.now() > item.expiresAt) {
+      delete store.companyResearch[slug.toLowerCase()];
+      return null;
+    }
+    return item.data;
+  },
+
+  setCompanyResearch(slug, data, ttlSeconds = 86400) {
+    if (!store.companyResearch) store.companyResearch = {};
+    store.companyResearch[slug.toLowerCase()] = {
+      data,
+      expiresAt: Date.now() + (ttlSeconds * 1000)
+    };
     persist();
   }
 };

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   FileText,
   Upload,
@@ -12,18 +13,38 @@ import {
   ArrowRight,
   Loader2,
   TrendingUp,
-  Cpu
+  Cpu,
+  PlayCircle
 } from 'lucide-react';
 import api from '../../lib/axios';
 import AppLayout from '../../components/AppLayout';
 
 export default function ResumeIntelligencePage() {
+  const router = useRouter();
   const [resumes, setResumes] = useState([]);
   const [activeResume, setActiveResume] = useState(null);
   const [rawText, setRawText] = useState('');
   const [fileName, setFileName] = useState('');
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [startingInterview, setStartingInterview] = useState(false);
+
+  const launchResumeInterview = async () => {
+    setStartingInterview(true);
+    try {
+      const { data } = await api.post('/interview/create', {
+        role: activeResume?.analysis?.structuredKnowledgeProfile?.primaryDomain || 'Full Stack Software Engineer',
+        company: 'Tier-1 Tech Leader',
+        roundType: 'Resume-Based Interview',
+        difficulty: activeResume?.analysis?.structuredKnowledgeProfile?.seniorityEstimate || 'Intermediate',
+        interviewerPersonality: 'Senior Engineer',
+      });
+      router.push(`/interview/${data._id}`);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to start resume interview.');
+      setStartingInterview(false);
+    }
+  };
 
   const fetchResumes = async () => {
     try {
@@ -133,6 +154,31 @@ export default function ResumeIntelligencePage() {
         {/* Display Active Resume Intelligence Analysis */}
         {activeResume ? (
           <div className="space-y-6">
+            {/* Launch Resume Interview Action Card */}
+            <div className="p-6 rounded-3xl bg-brand-card border border-brand-accent/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-card-glow">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-brand-accent" />
+                  <h3 className="text-base font-bold text-white">Adaptive Resume Interview Ready</h3>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-system-success/15 text-system-success font-bold uppercase">
+                    Profile Linked
+                  </span>
+                </div>
+                <p className="text-xs text-content-secondary max-w-2xl">
+                  Launch a multi-turn deep dive simulation into your featured project claims ({activeResume.parsedData?.projects?.[0]?.title || 'Architecture'}). The interviewer will probe your design decisions, trade-offs, and failure recoveries.
+                </p>
+              </div>
+
+              <button
+                onClick={launchResumeInterview}
+                disabled={startingInterview}
+                className="px-6 py-3 rounded-2xl bg-purple-gradient text-white text-xs font-bold shadow-card-glow hover:opacity-95 flex items-center gap-2 shrink-0 disabled:opacity-50"
+              >
+                {startingInterview ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4 fill-current" />}
+                <span>Launch Adaptive Resume Interview</span>
+              </button>
+            </div>
+
             {/* Top Score Summary Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               <div className="p-6 rounded-3xl bg-brand-card border border-border space-y-2">

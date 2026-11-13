@@ -2,7 +2,7 @@ import Resume from '../models/Resume.js';
 import User from '../models/User.js';
 import { isDbConnected } from '../config/db.js';
 import { memoryStore } from '../services/storageFallback.js';
-import { analyzeResumeContent } from '../services/aiService.js';
+import { buildResumeKnowledgeProfile } from '../services/resumeIntelligenceService.js';
 
 export const uploadAndAnalyzeResume = async (req, res) => {
   try {
@@ -13,8 +13,8 @@ export const uploadAndAnalyzeResume = async (req, res) => {
       return res.status(400).json({ message: 'Resume text is required for intelligence extraction.' });
     }
 
-    // Run AI Resume Intelligence Engine (using Groq / Gemini / domain intelligence)
-    const analysisResult = await analyzeResumeContent(rawText);
+    // Run AI Resume Knowledge Profile Extraction
+    const analysisResult = await buildResumeKnowledgeProfile(rawText);
 
     let existingCount = 0;
     if (isDbConnected()) {
@@ -41,15 +41,33 @@ export const uploadAndAnalyzeResume = async (req, res) => {
         phone: analysisResult.phone,
         summary: analysisResult.summary,
         skills: analysisResult.skills,
+        projects: analysisResult.projects || [],
+        experience: analysisResult.experience || [],
       },
       analysis: {
-        technicalStrengthRating: analysisResult.technicalStrengthRating,
-        overallReadinessRating: analysisResult.overallReadinessRating,
+        technicalStrengthRating: analysisResult.technicalStrengthRating || 82,
+        overallReadinessRating: analysisResult.overallReadinessRating || 80,
         demonstratedEvidenceNotes: analysisResult.demonstratedEvidenceNotes,
-        missingCriticalSkills: analysisResult.missingCriticalSkills,
-        strongCompetencies: analysisResult.strongCompetencies,
-        suggestedImprovements: analysisResult.suggestedImprovements,
-        tailoredInterviewQuestions: analysisResult.tailoredInterviewQuestions,
+        missingCriticalSkills: analysisResult.missingCriticalSkills || [],
+        strongCompetencies: analysisResult.strongCompetencies || [],
+        suggestedImprovements: analysisResult.suggestedImprovements || [],
+        tailoredInterviewQuestions: (analysisResult.projects || []).slice(0, 3).map(p => ({
+          question: `In your project "${p.title}", how did you design the architecture and evaluate database consistency trade-offs?`,
+          topic: `${p.title} Architecture`,
+          difficulty: 'Intermediate',
+          contextFromResume: p.description,
+          expectedEvidence: 'Understanding of concurrency, latency, and database indexing.'
+        })),
+        structuredKnowledgeProfile: {
+          primaryDomain: analysisResult.primaryDomain || 'Full Stack',
+          seniorityEstimate: analysisResult.seniorityEstimate || 'Intermediate',
+          deepDiveCandidates: (analysisResult.projects || []).map(p => ({
+            projectTitle: p.title,
+            coreTechnology: p.technologies?.join(', ') || 'Modern stack',
+            architecturalHighlights: p.architecturalHighlights || p.description,
+            potentialProbingAngles: p.potentialProbingAngles || ['Architecture', 'Failure recovery', 'Scale']
+          }))
+        }
       },
       isPrimary: true,
       version: existingCount + 1,

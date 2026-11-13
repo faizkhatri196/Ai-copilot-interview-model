@@ -72,6 +72,16 @@ const resumeSchema = new mongoose.Schema({
       contextFromResume: String,
       expectedEvidence: String,
     }],
+    structuredKnowledgeProfile: {
+      primaryDomain: String,
+      seniorityEstimate: String,
+      deepDiveCandidates: [{
+        projectTitle: String,
+        coreTechnology: String,
+        architecturalHighlights: String,
+        potentialProbingAngles: [String],
+      }],
+    },
   },
   isPrimary: {
     type: Boolean,
@@ -84,6 +94,9 @@ const resumeSchema = new mongoose.Schema({
 }, {
   timestamps: true,
 });
+
+resumeSchema.index({ userId: 1, isPrimary: -1 });
+resumeSchema.index({ userId: 1, createdAt: -1 });
 
 const Resume = mongoose.model('Resume', resumeSchema);
 export default Resume;

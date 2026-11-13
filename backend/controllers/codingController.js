@@ -246,6 +246,35 @@ function flattenObject(obj) {
   }
 ];
 
+export const sanitizePublicChallenge = (challenge) => {
+  if (!challenge) return null;
+  const raw = typeof challenge.toObject === 'function' ? challenge.toObject() : { ...challenge };
+  const sanitized = {
+    title: raw.title,
+    slug: raw.slug,
+    topic: raw.topic,
+    difficulty: raw.difficulty,
+    companyTags: raw.companyTags || [],
+    description: raw.description,
+    examples: raw.examples || [],
+    constraints: raw.constraints || [],
+    starterTemplates: raw.starterTemplates || {},
+    timeLimitMs: raw.timeLimitMs || 2500,
+    memoryLimitMb: raw.memoryLimitMb || 128,
+    hints: raw.hints || [],
+    optimalComplexity: raw.optimalComplexity || null,
+    publicTestCases: (raw.testCases || raw.publicTestCases || [])
+      .filter(tc => !tc.isHidden)
+      .map((tc, idx) => ({
+        testIndex: idx + 1,
+        input: tc.input,
+        expectedOutput: tc.expectedOutput,
+        explanation: tc.explanation || '',
+      })),
+  };
+  return sanitized;
+};
+
 export const getChallenges = async (req, res) => {
   try {
     const { topic, difficulty } = req.query || {};
@@ -253,24 +282,28 @@ export const getChallenges = async (req, res) => {
     if (topic) filter.topic = topic;
     if (difficulty) filter.difficulty = difficulty;
 
+    let challenges = [];
     if (isDbConnected()) {
       try {
-        const challenges = await Promise.race([
-          CodingChallenge.find(filter).select('-testCases.isHidden'),
+        challenges = await Promise.race([
+          CodingChallenge.find(filter).select('-hiddenTestCases -referenceSolution -testGeneratorCode'),
           new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
         ]);
-        if (challenges && challenges.length > 0) return res.json(challenges);
       } catch (dbErr) {
         console.warn('[Coding Controller] DB query failed, using premier challenges:', dbErr.message);
       }
     }
 
-    let filtered = seedChallenges;
-    if (topic) filtered = filtered.filter(c => c.topic === topic);
-    if (difficulty) filtered = filtered.filter(c => c.difficulty === difficulty);
-    res.json(filtered);
+    if (!challenges || challenges.length === 0) {
+      challenges = seedChallenges;
+      if (topic) challenges = challenges.filter(c => c.topic === topic);
+      if (difficulty) challenges = challenges.filter(c => c.difficulty === difficulty);
+    }
+
+    const publicList = challenges.map(sanitizePublicChallenge);
+    res.json(publicList);
   } catch (error) {
-    res.json(seedChallenges);
+    res.json(seedChallenges.map(sanitizePublicChallenge));
   }
 };
 
@@ -291,14 +324,19 @@ export const getChallengeBySlug = async (req, res) => {
     }
 
     if (!challenge) {
-      const match = seedChallenges.find(c => c.slug === slug);
-      if (match) return res.json(match);
+      challenge = seedChallenges.find(c => c.slug === slug);
+    }
+
+    if (!challenge) {
       return res.status(404).json({ message: 'Coding challenge not found' });
     }
-    res.json(challenge);
+
+    // Shield all private backend evaluation metadata and hidden tests
+    const publicData = sanitizePublicChallenge(challenge);
+    res.json(publicData);
   } catch (error) {
     const match = seedChallenges.find(c => c.slug === req.params.slug);
-    if (match) return res.json(match);
+    if (match) return res.json(sanitizePublicChallenge(match));
     res.status(500).json({ message: error.message });
   }
 };
@@ -307,6 +345,10 @@ export const runCodeSubmission = async (req, res) => {
   try {
     const { slug } = req.params;
     const { code, language } = req.body;
+
+    if (!code || typeof code !== 'string') {
+      return res.status(400).json({ message: 'Code string is required.' });
+    }
 
     let challenge = null;
     if (isDbConnected()) {
@@ -322,10 +364,14 @@ export const runCodeSubmission = async (req, res) => {
       return res.status(404).json({ message: 'Challenge not found' });
     }
 
+    // Execute against full test suite (public + hidden) in isolated VM
     const result = await runIsolatedCode({
       code,
       language: language || 'javascript',
-      testCases: challenge.testCases,
+      testCases: challenge.testCases || [
+        ...(challenge.publicTestCases || []),
+        ...(challenge.hiddenTestCases || [])
+      ],
       slug,
       timeLimitMs: challenge.timeLimitMs || 2500,
     });
