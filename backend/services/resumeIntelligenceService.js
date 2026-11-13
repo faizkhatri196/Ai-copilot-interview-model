@@ -1,4 +1,101 @@
-import { queryGroq, queryGemini, cleanJson } from './aiService.js';
+import zlib from 'zlib';
+import { queryGroq, queryGemini, querySmartAI, cleanJson } from './aiService.js';
+
+/**
+ * Universal Resume Document Text Extractor
+ * Extracts clean textual content from PDF, DOCX, and TXT/Markdown formats.
+ * Handles corrupted, truncated, and binary streams gracefully.
+ */
+export const extractTextFromResumeFile = ({ rawContent, fileType, fileName }) => {
+  if (!rawContent || (typeof rawContent !== 'string' && !Buffer.isBuffer(rawContent))) {
+    throw new Error('Resume file content is empty or unreadable.');
+  }
+
+  const detectedType = (fileType || fileName?.split('.').pop() || 'txt').toLowerCase();
+  const buffer = Buffer.isBuffer(rawContent) 
+    ? rawContent 
+    : (rawContent.startsWith('data:') && rawContent.includes('base64,')
+      ? Buffer.from(rawContent.split('base64,')[1], 'base64')
+      : Buffer.from(rawContent, 'utf-8'));
+
+  if (buffer.length === 0) {
+    throw new Error('Resume file is empty.');
+  }
+
+  // 1. PDF File Text Extraction
+  if (detectedType === 'pdf' || buffer.slice(0, 5).toString('ascii').startsWith('%PDF-')) {
+    const rawString = buffer.toString('binary');
+    const textChunks = [];
+
+    // Extract text from standard PDF Text Blocks (BT ... ET)
+    const btRegex = /BT[\s\S]*?ET/g;
+    let match;
+    while ((match = btRegex.exec(rawString)) !== null) {
+      const block = match[0];
+      // Match text within parentheses (text strings)
+      const tjMatches = block.match(/\((.*?)\)\s*Tj/g) || [];
+      for (const tj of tjMatches) {
+        const str = tj.replace(/^\(/, '').replace(/\)\s*Tj$/, '');
+        if (str && str.length > 0) {
+          textChunks.push(str.replace(/\\([()\\])/g, '$1'));
+        }
+      }
+
+      // Match text within TJ arrays [(t1) 20 (t2)]
+      const arrayMatches = block.match(/\[(.*?)\]\s*TJ/g) || [];
+      for (const arr of arrayMatches) {
+        const subStrings = arr.match(/\((.*?)\)/g) || [];
+        for (const sub of subStrings) {
+          const str = sub.slice(1, -1);
+          if (str && str.length > 0) {
+            textChunks.push(str.replace(/\\([()\\])/g, '$1'));
+          }
+        }
+      }
+    }
+
+    const extractedPdfText = textChunks.join(' ').replace(/\s+/g, ' ').trim();
+    if (extractedPdfText.length >= 20) {
+      return extractedPdfText;
+    }
+
+    throw new Error('Invalid or corrupted PDF file: No extractable text streams found.');
+  }
+
+  // 2. DOCX File Text Extraction (OpenXML word/document.xml)
+  if (detectedType === 'docx' || buffer.slice(0, 4).toString('hex') === '504b0304') {
+    const rawString = buffer.toString('binary');
+    // OpenXML stores text in <w:t> tags inside word/document.xml
+    const wtMatches = rawString.match(/<w:t[^>]*>(.*?)<\/w:t>/g);
+    if (wtMatches && wtMatches.length > 0) {
+      const docxText = wtMatches
+        .map(t => t.replace(/<[^>]+>/g, ''))
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      if (docxText.length >= 20) {
+        return docxText;
+      }
+    }
+
+    const readable = buffer.toString('utf-8').replace(/<[^>]+>/g, ' ').replace(/[^\x20-\x7E\n\t]/g, ' ');
+    const cleanedDocx = readable.replace(/\s+/g, ' ').trim();
+    if (cleanedDocx.length >= 40 && /[a-zA-Z]{3,}/.test(cleanedDocx)) {
+      return cleanedDocx;
+    }
+
+    throw new Error('Invalid or corrupted DOCX file: Failed to extract document XML.');
+  }
+
+  // 3. Plain Text / Markdown / UTF-8
+  const textContent = buffer.toString('utf-8').trim();
+  if (textContent.length < 15 || !/[a-zA-Z]{3,}/.test(textContent)) {
+    throw new Error('Invalid resume file: Insufficient textual content for analysis.');
+  }
+
+  return textContent;
+};
 
 /**
  * Deep Resume Intelligence Extraction & Structured Knowledge Profile Pipeline
@@ -60,19 +157,11 @@ Return ONLY valid JSON:
 }`;
 
   try {
-    const raw = await queryGroq(prompt, "You are a Senior Technical Recruiter. Output JSON only.");
+    const raw = await querySmartAI(prompt, "You are a Senior Technical Recruiter. Output JSON only.");
     const parsed = cleanJson(raw);
     if (parsed && Array.isArray(parsed.projects)) return parsed;
   } catch (err) {
-    console.warn('[Resume Service] Groq extraction failed. Trying Gemini:', err.message);
-  }
-
-  try {
-    const raw = await queryGemini(prompt);
-    const parsed = cleanJson(raw);
-    if (parsed && Array.isArray(parsed.projects)) return parsed;
-  } catch (err) {
-    console.warn('[Resume Service] Gemini extraction failed, using resilient parser:', err.message);
+    console.warn('[Resume Service] Smart AI extraction failed, using resilient parser:', err.message);
   }
 
   // Resilient heuristic extraction fallback

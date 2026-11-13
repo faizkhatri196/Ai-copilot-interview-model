@@ -2,19 +2,32 @@ import Resume from '../models/Resume.js';
 import User from '../models/User.js';
 import { isDbConnected } from '../config/db.js';
 import { memoryStore } from '../services/storageFallback.js';
-import { buildResumeKnowledgeProfile } from '../services/resumeIntelligenceService.js';
+import { buildResumeKnowledgeProfile, extractTextFromResumeFile } from '../services/resumeIntelligenceService.js';
 
 export const uploadAndAnalyzeResume = async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
-    const { fileName, fileType, rawText, fileSize } = req.body;
+    const { fileName, fileType, rawText, fileBase64, fileSize } = req.body;
 
-    if (!rawText || rawText.trim().length === 0) {
-      return res.status(400).json({ message: 'Resume text is required for intelligence extraction.' });
+    const contentInput = fileBase64 || rawText;
+    if (!contentInput || (typeof contentInput === 'string' && contentInput.trim().length === 0)) {
+      return res.status(400).json({ message: 'Resume content is required for intelligence extraction.' });
+    }
+
+    // Extract textual content from TXT, PDF, or DOCX formats safely
+    let extractedText;
+    try {
+      extractedText = extractTextFromResumeFile({
+        rawContent: contentInput,
+        fileType,
+        fileName
+      });
+    } catch (parseErr) {
+      return res.status(400).json({ message: parseErr.message });
     }
 
     // Run AI Resume Knowledge Profile Extraction
-    const analysisResult = await buildResumeKnowledgeProfile(rawText);
+    const analysisResult = await buildResumeKnowledgeProfile(extractedText);
 
     let existingCount = 0;
     if (isDbConnected()) {
@@ -33,8 +46,8 @@ export const uploadAndAnalyzeResume = async (req, res) => {
       userId,
       fileName: fileName || `Resume_v${existingCount + 1}.${fileType || 'txt'}`,
       fileType: fileType || 'txt',
-      fileSize: fileSize || rawText.length,
-      rawText,
+      fileSize: fileSize || extractedText.length,
+      rawText: extractedText,
       parsedData: {
         candidateName: analysisResult.candidateName,
         email: analysisResult.email,

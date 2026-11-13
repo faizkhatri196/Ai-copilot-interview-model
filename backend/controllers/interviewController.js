@@ -20,7 +20,8 @@ export const createInterview = async (req, res) => {
       difficulty = 'Intermediate',
       company = 'General Tech',
       roundType = 'Technical Fundamentals',
-      interviewerPersonality = 'Professional'
+      interviewerPersonality = 'Professional',
+      targetTurns = 10
     } = req.body;
 
     const interview = await initializeAdaptiveInterview({
@@ -29,7 +30,8 @@ export const createInterview = async (req, res) => {
       company,
       difficulty,
       roundType,
-      interviewerPersonality
+      interviewerPersonality,
+      targetTurns
     });
 
     if (isDbConnected()) {

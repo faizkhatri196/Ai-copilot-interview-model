@@ -11,19 +11,28 @@ import {
 } from '../services/interviewOrchestrator.js';
 
 export const initializeSocket = (io) => {
-  // Socket JWT Authorization Middleware
+  // Socket JWT Authorization Middleware: Reject any unauthenticated handshake
   io.use(async (socket, next) => {
     try {
       const token = socket.handshake.auth?.token || socket.handshake.query?.token;
       if (!token) {
-        // Allow unauthenticated guest connections for monitoring, but restrict sensitive room operations
-        socket.user = null;
-        return next();
+        const authErr = new Error('AUTHENTICATION_REQUIRED: Valid JWT token required for interview socket');
+        authErr.data = { code: 'NO_TOKEN_PROVIDED' };
+        return next(authErr);
       }
 
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecretjwtkeyforinterviewcopilot');
-      const userId = decoded.id;
+      let decoded;
+      try {
+        decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecretjwtkeyforinterviewcopilot');
+      } catch (jwtErr) {
+        const expiredErr = new Error(jwtErr.name === 'TokenExpiredError' 
+          ? 'TOKEN_EXPIRED: Session expired, please re-authenticate' 
+          : 'TOKEN_INVALID: Malformed or unverified JWT token');
+        expiredErr.data = { code: jwtErr.name };
+        return next(expiredErr);
+      }
 
+      const userId = decoded.id;
       let user = null;
       if (isDbConnected()) {
         try {
@@ -34,29 +43,32 @@ export const initializeSocket = (io) => {
         user = await memoryStore.findUserById(userId);
       }
 
-      socket.user = user ? { _id: user._id || user.id, email: user.email, name: user.name } : null;
+      if (!user) {
+        // Fallback user structure matching token
+        user = { _id: userId, id: userId, email: decoded.email || 'candidate@example.com', name: decoded.name || 'Candidate' };
+      }
+
+      socket.user = { _id: String(user._id || user.id), email: user.email, name: user.name };
       next();
     } catch (err) {
-      // Allow fallback connection but mark as unverified
-      socket.user = null;
-      next();
+      next(new Error('AUTHENTICATION_FAILED: ' + err.message));
     }
   });
 
   io.on('connection', (socket) => {
-    // Join Interview Room with Ownership Verification
+    // Join Interview Room with Strict Ownership Verification
     socket.on('join-interview', async (interviewId) => {
       try {
-        if (!interviewId) return;
-
-        // If user is authenticated, verify session ownership
-        if (socket.user?._id) {
-          try {
-            await getInterviewWithOwnerCheck(interviewId, socket.user._id);
-          } catch (authErr) {
-            return socket.emit('error', { message: authErr.message, code: 'UNAUTHORIZED_SESSION' });
-          }
+        if (!interviewId) {
+          return socket.emit('error', { message: 'Interview ID is required', code: 'INVALID_REQUEST' });
         }
+
+        if (!socket.user?._id) {
+          return socket.emit('error', { message: 'Authentication required to join interview', code: 'UNAUTHORIZED' });
+        }
+
+        // Verify session ownership: candidate A cannot join candidate B's interview
+        await getInterviewWithOwnerCheck(interviewId, socket.user._id);
 
         socket.join(interviewId);
         socket.emit('joined-room', {
@@ -64,8 +76,11 @@ export const initializeSocket = (io) => {
           timestamp: new Date(),
           socketId: socket.id
         });
-      } catch (err) {
-        socket.emit('error', { message: 'Failed to join interview room: ' + err.message });
+      } catch (authErr) {
+        socket.emit('error', {
+          message: authErr.message || 'Unauthorized access to interview session',
+          code: 'UNAUTHORIZED_SESSION'
+        });
       }
     });
 
@@ -81,10 +96,15 @@ export const initializeSocket = (io) => {
       } = data;
 
       try {
-        const userId = socket.user?._id || data.userId;
-        if (!userId) {
-          return socket.emit('error', { message: 'User identification required to submit answers.' });
+        if (!socket.user?._id) {
+          return socket.emit('error', { message: 'Authenticated user session required.', code: 'UNAUTHORIZED' });
         }
+
+        // Always enforce authenticated socket user identity; never trust client-supplied userId
+        const userId = socket.user._id;
+
+        // Verify ownership before processing
+        await getInterviewWithOwnerCheck(interviewId, userId);
 
         // Notify client AI is thinking
         io.to(interviewId).emit('ai-typing', { isTyping: true, state: 'ANALYZING_RESPONSE' });
@@ -114,8 +134,13 @@ export const initializeSocket = (io) => {
 
       } catch (error) {
         console.error('[Socket] submit-answer error:', error);
-        io.to(interviewId).emit('ai-typing', { isTyping: false });
-        socket.emit('error', { message: error.message || 'Failed to process answer evaluation' });
+        if (interviewId) {
+          io.to(interviewId).emit('ai-typing', { isTyping: false });
+        }
+        socket.emit('error', {
+          message: error.message || 'Failed to process answer evaluation',
+          code: error.status === 403 ? 'UNAUTHORIZED_SESSION' : 'SUBMIT_ERROR'
+        });
       }
     });
 
@@ -123,7 +148,11 @@ export const initializeSocket = (io) => {
     socket.on('request-clarification', async (data) => {
       const { interviewId, questionId, candidateQuery } = data;
       try {
-        const userId = socket.user?._id || data.userId;
+        if (!socket.user?._id) {
+          return socket.emit('error', { message: 'Authentication required.', code: 'UNAUTHORIZED' });
+        }
+        const userId = socket.user._id;
+
         const clarification = await requestClarification({
           interviewId,
           userId,
@@ -137,7 +166,7 @@ export const initializeSocket = (io) => {
           timestamp: new Date()
         });
       } catch (err) {
-        socket.emit('error', { message: err.message });
+        socket.emit('error', { message: err.message, code: err.status === 403 ? 'UNAUTHORIZED_SESSION' : 'ERROR' });
       }
     });
 
@@ -145,7 +174,11 @@ export const initializeSocket = (io) => {
     socket.on('skip-question', async (data) => {
       const { interviewId, questionId } = data;
       try {
-        const userId = socket.user?._id || data.userId;
+        if (!socket.user?._id) {
+          return socket.emit('error', { message: 'Authentication required.', code: 'UNAUTHORIZED' });
+        }
+        const userId = socket.user._id;
+
         const result = await skipQuestion({ interviewId, userId, questionId });
 
         io.to(interviewId).emit('question-skipped', {
@@ -154,7 +187,7 @@ export const initializeSocket = (io) => {
           timestamp: new Date()
         });
       } catch (err) {
-        socket.emit('error', { message: err.message });
+        socket.emit('error', { message: err.message, code: err.status === 403 ? 'UNAUTHORIZED_SESSION' : 'ERROR' });
       }
     });
 

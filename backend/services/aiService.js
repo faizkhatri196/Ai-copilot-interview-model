@@ -8,27 +8,36 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 let geminiClient = null;
-if (process.env.GEMINI_API_KEY) {
+const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+if (geminiKey) {
   try {
-    geminiClient = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    geminiClient = new GoogleGenAI({ apiKey: geminiKey });
   } catch (err) {
     console.warn('[AI Service] Gemini initialization warning:', err.message);
   }
 }
 
+// Circuit breaker for invalid or rate-limited API keys
+let groqDisabled = false;
+let groqDisabledReason = '';
+
 /**
- * Resilient query to Groq API with automatic model failover
+ * Resilient query to Groq API with automatic model failover & circuit breaker
  */
 export const queryGroq = async (prompt, systemMessage = "You are an expert technical interviewer.") => {
+  if (groqDisabled) {
+    throw new Error(`Groq circuit breaker active: ${groqDisabledReason}`);
+  }
+
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("GROQ_API_KEY missing");
 
-  const models = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'qwen/qwen3.8-27b'];
+  const models = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
   let lastError = null;
 
   for (const model of models) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 14000);
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
 
     try {
       const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -50,6 +59,13 @@ export const queryGroq = async (prompt, systemMessage = "You are an expert techn
       });
       clearTimeout(timeoutId);
 
+      if (response.status === 401) {
+        groqDisabled = true;
+        groqDisabledReason = 'Invalid API Key (HTTP 401)';
+        console.warn('[AI Service] Groq returned 401 Invalid Key. Disabling Groq and switching to Gemini permanently.');
+        throw new Error('Groq 401 Invalid API Key');
+      }
+
       if (!response.ok) {
         const err = await response.text();
         lastError = new Error(`Groq HTTP ${response.status} (${model}): ${err}`);
@@ -61,6 +77,7 @@ export const queryGroq = async (prompt, systemMessage = "You are an expert techn
       }
     } catch (e) {
       clearTimeout(timeoutId);
+      if (groqDisabled) throw e;
       lastError = e;
     }
   }
@@ -69,7 +86,7 @@ export const queryGroq = async (prompt, systemMessage = "You are an expert techn
 };
 
 /**
- * Query Gemini Fallback with automatic model failover
+ * High-speed Gemini Provider (Primary Active Pipeline)
  */
 export const queryGemini = async (prompt) => {
   if (!geminiClient) throw new Error("Gemini client not configured");
@@ -88,6 +105,26 @@ export const queryGemini = async (prompt) => {
     }
   }
   throw lastErr || new Error("Gemini generation failed");
+};
+
+/**
+ * Universal Smart AI Router: Tiered routing selecting active, lowest-latency provider
+ */
+export const querySmartAI = async (prompt, systemMessage = "You are an expert technical interviewer.") => {
+  // If Groq is not disabled, try fast inference; otherwise run ultra-fast Gemini directly
+  if (!groqDisabled && process.env.GROQ_API_KEY) {
+    try {
+      return await queryGroq(prompt, systemMessage);
+    } catch (groqErr) {
+      // Graceful instant failover to Gemini
+    }
+  }
+
+  if (geminiClient) {
+    return await queryGemini(prompt);
+  }
+
+  throw new Error("No operational AI provider available.");
 };
 
 /**
@@ -312,19 +349,11 @@ Respond with a JSON object containing:
 Return ONLY valid JSON.`;
 
   try {
-    const raw = await queryGroq(prompt, "You are a live conversational voice interviewer. Output JSON only.");
+    const raw = await querySmartAI(prompt, "You are a live conversational voice interviewer. Output JSON only.");
     const parsed = cleanJson(raw);
     if (parsed && parsed.speechResponse) return parsed;
   } catch (err) {
-    console.warn(`[AI Service] Groq voice turn failed (${err.message}). Trying Gemini...`);
-  }
-
-  try {
-    const raw = await queryGemini(prompt);
-    const parsed = cleanJson(raw);
-    if (parsed && parsed.speechResponse) return parsed;
-  } catch (geminiErr) {
-    console.warn(`[AI Service] Gemini voice turn failed (${geminiErr.message}). Using Domain Fallback.`);
+    console.warn(`[AI Service] Smart AI voice turn failed (${err.message}). Using Domain Fallback.`);
   }
 
   // Domain fallback response
@@ -375,19 +404,11 @@ Return ONLY a valid JSON object matching this schema:
 }`;
 
   try {
-    const raw = await queryGroq(prompt);
+    const raw = await querySmartAI(prompt, "You are a senior technical interviewer. Output JSON only.");
     const parsed = cleanJson(raw);
     if (parsed && typeof parsed.score === 'number') return parsed;
   } catch (e) {
-    console.warn(`[AI Service] Groq evaluation failed (${e.message}). Trying Gemini...`);
-  }
-
-  try {
-    const raw = await queryGemini(prompt);
-    const parsed = cleanJson(raw);
-    if (parsed && typeof parsed.score === 'number') return parsed;
-  } catch (geminiErr) {
-    console.warn(`[AI Service] Gemini evaluation failed (${geminiErr.message}). Using Domain Evaluator.`);
+    console.warn(`[AI Service] Smart AI evaluation failed (${e.message}). Using Domain Evaluator.`);
   }
 
   const wordCount = (answer || '').trim().split(/\s+/).filter(Boolean).length;

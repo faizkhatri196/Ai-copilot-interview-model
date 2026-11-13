@@ -64,32 +64,47 @@ export default function ResumeIntelligencePage() {
     fetchResumes();
   }, []);
 
+  const [fileBase64, setFileBase64] = useState('');
+
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
     setFileName(file.name);
     const reader = new FileReader();
-    reader.onload = (event) => {
-      setRawText(event.target.result);
-    };
-    reader.readAsText(file);
+    const isBinary = file.name.endsWith('.pdf') || file.name.endsWith('.docx');
+
+    if (isBinary) {
+      reader.onload = (event) => {
+        setFileBase64(event.target.result);
+        setRawText(`[Binary Document Uploaded: ${file.name} (${Math.round(file.size / 1024)} KB)]`);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      reader.onload = (event) => {
+        setRawText(event.target.result);
+        setFileBase64('');
+      };
+      reader.readAsText(file);
+    }
   };
 
   const submitResume = async (e) => {
     e.preventDefault();
-    if (!rawText.trim()) return;
+    if (!rawText.trim() && !fileBase64) return;
 
     setUploading(true);
     try {
       const { data } = await api.post('/resumes/analyze', {
         fileName: fileName || 'Resume_Upload.txt',
         fileType: fileName?.endsWith('.pdf') ? 'pdf' : fileName?.endsWith('.docx') ? 'docx' : 'txt',
-        rawText,
+        rawText: fileBase64 ? undefined : rawText,
+        fileBase64: fileBase64 || undefined,
       });
       setActiveResume(data);
       await fetchResumes();
       setRawText('');
+      setFileBase64('');
       setFileName('');
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to analyze resume.');

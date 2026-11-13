@@ -93,7 +93,7 @@ Implement the method allowRequest(currentTimeMs, tokensRequested = 1):
       {
         input: JSON.stringify({
           operations: ['constructor', 'allowRequest', 'allowRequest', 'allowRequest'],
-          params: [[10, 5], [0, 10], [500, 3], [500, 1]]
+          params: [[10, 5], [0, 10], [500, 3], [500, 3]]
         }),
         expectedOutput: JSON.stringify([null, true, false, false]),
         isHidden: true

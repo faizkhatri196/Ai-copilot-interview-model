@@ -1,7 +1,7 @@
 import Company from '../models/Company.js';
 import { isDbConnected } from '../config/db.js';
 import { memoryStore } from './storageFallback.js';
-import { queryGroq, queryGemini, cleanJson } from './aiService.js';
+import { queryGroq, queryGemini, querySmartAI, cleanJson } from './aiService.js';
 
 const RESEARCH_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 Hours
 
@@ -160,6 +160,214 @@ const VERIFIED_RESEARCH_CATALOG = {
         }
       ]
     }
+  },
+  microsoft: {
+    name: 'Microsoft',
+    slug: 'microsoft',
+    domain: 'microsoft.com',
+    industry: 'Enterprise Software & Cloud Platforms (Azure)',
+    description: 'Global cloud, operating systems, and developer platform powerhouse (Azure, Windows, GitHub, Office 365, Copilot).',
+    cultureSummary: 'Growth Mindset, Customer Obsession, Diversity & Inclusion, One Microsoft, and Making a Difference.',
+    leadershipPrinciples: ['Generate Energy', 'Deliver Success', 'Create Clarity'],
+    techStack: ['C# / .NET', 'TypeScript', 'C++', 'Python', 'Azure (CosmosDB, AKS, Event Hubs)', 'React'],
+    hiringLocations: ['Redmond', 'Seattle', 'Hyderabad', 'Bangalore', 'Dublin', 'Remote'],
+    research: {
+      overview: 'Focuses on maintainable software engineering, clean object-oriented design, Azure cloud architectures, and Growth Mindset problem-solving.',
+      lastChecked: new Date(),
+      cacheExpiresAt: new Date(Date.now() + RESEARCH_CACHE_TTL_MS),
+      interviewStages: [
+        { stageNumber: 1, name: 'Online Assessment', roundType: 'Online Assessment', durationMinutes: 90, format: 'Codility / 3 problems', keyFocus: 'Arrays, Strings, Recursion, Time Complexity' },
+        { stageNumber: 2, name: 'Technical Phone Screen', roundType: 'Technical Screen', durationMinutes: 45, format: 'Teams + Live Editor', keyFocus: 'Data structures and problem breakdown' },
+        { stageNumber: 3, name: 'Virtual Onsite Round 1 (Coding & Clean Architecture)', roundType: 'DSA Coding Interview', durationMinutes: 60, format: 'Live pair programming', keyFocus: 'Trees, Linked Lists, Clean Code modularity' },
+        { stageNumber: 4, name: 'Virtual Onsite Round 2 (System Design / LLD)', roundType: 'System Design', durationMinutes: 60, format: 'Azure Whiteboard', keyFocus: 'Multi-tenant services, CosmosDB partition keys, caching' },
+        { stageNumber: 5, name: 'Virtual Onsite Round 3 (As-Appropriate / Hiring Manager)', roundType: 'Behavioral Interview', durationMinutes: 60, format: 'Deep STAR review', keyFocus: 'Growth Mindset, learning from failure, cross-team collaboration' }
+      ],
+      reportedTopics: [
+        { category: 'DSA', topic: 'Binary Trees & String Manipulation', frequency: 'High', exampleThemes: ['Lowest Common Ancestor', 'Serialize/Deserialize Tree'] },
+        { category: 'System Design', topic: 'Cloud Storage & Document Sharing', frequency: 'High', exampleThemes: ['OneDrive sync protocol', 'Real-time collaborative editing'] },
+        { category: 'Behavioral', topic: 'Growth Mindset & Failure Analysis', frequency: 'Critical', exampleThemes: ['Handling critical feedback', 'Unblocking an ambiguous project'] }
+      ],
+      sources: [
+        {
+          title: 'Microsoft Careers - Technical Interview Preparation',
+          url: 'https://careers.microsoft.com/v2/global/en/hiring-process.html',
+          sourceType: 'OFFICIAL_CAREERS',
+          confidence: 100,
+          retrievalTimestamp: new Date()
+        },
+        {
+          title: 'Microsoft Azure Architecture Center',
+          url: 'https://learn.microsoft.com/en-us/azure/architecture/',
+          sourceType: 'ENGINEERING_BLOG',
+          confidence: 96,
+          retrievalTimestamp: new Date()
+        }
+      ]
+    }
+  },
+  adobe: {
+    name: 'Adobe',
+    slug: 'adobe',
+    domain: 'adobe.com',
+    industry: 'Digital Media & Creative Cloud Enterprise',
+    description: 'World leader in digital creation tools (Photoshop, Premiere, Illustrator), Acrobat PDF engine, and Adobe Experience Cloud.',
+    cultureSummary: 'Genuine, Exceptional, Innovative, and Involved. High focus on graphics performance, data structures, and client-server scalability.',
+    leadershipPrinciples: ['Be Exceptional', 'Own the Outcome', 'Innovate Boldly', 'Include Everyone'],
+    techStack: ['C++', 'Java', 'Python', 'JavaScript/TypeScript', 'WebAssembly', 'AWS / Azure', 'React'],
+    hiringLocations: ['San Jose', 'Noida', 'Bangalore', 'Seattle', 'San Francisco', 'Remote'],
+    research: {
+      overview: 'Rigorous rounds testing data structure mastery (graphs, matrices, memory efficiency), object-oriented design patterns, and high-throughput content pipelines.',
+      lastChecked: new Date(),
+      cacheExpiresAt: new Date(Date.now() + RESEARCH_CACHE_TTL_MS),
+      interviewStages: [
+        { stageNumber: 1, name: 'Online Coding Test', roundType: 'Online Assessment', durationMinutes: 90, format: 'HackerRank / 3 DSA questions', keyFocus: 'Dynamic programming, matrix traversal, heaps' },
+        { stageNumber: 2, name: 'Technical Round 1 (Data Structures)', roundType: 'DSA Coding Interview', durationMinutes: 60, format: 'Live Code Editor', keyFocus: 'Trees, Linked Lists, Bit manipulation' },
+        { stageNumber: 3, name: 'Technical Round 2 (Design & Architecture)', roundType: 'System Design', durationMinutes: 60, format: 'Interactive Whiteboard', keyFocus: 'Asset processing pipeline, cache hierarchy, memory profiling' },
+        { stageNumber: 4, name: 'Director / Hiring Manager Round', roundType: 'Behavioral Interview', durationMinutes: 45, format: 'STAR Behavioral', keyFocus: 'Engineering values, product innovation, ownership' }
+      ],
+      reportedTopics: [
+        { category: 'DSA', topic: 'Matrix Manipulation & Dynamic Programming', frequency: 'High', exampleThemes: ['Image rotation in-place', '0/1 Knapsack variants'] },
+        { category: 'System Design', topic: 'Collaborative Document Canvas', frequency: 'High', exampleThemes: ['Real-time canvas updates with CRDTs', 'Asset thumbnail generation'] }
+      ],
+      sources: [
+        {
+          title: 'Adobe Careers - How We Hire',
+          url: 'https://www.adobe.com/careers.html',
+          sourceType: 'OFFICIAL_CAREERS',
+          confidence: 98,
+          retrievalTimestamp: new Date()
+        }
+      ]
+    }
+  },
+  uber: {
+    name: 'Uber',
+    slug: 'uber',
+    domain: 'uber.com',
+    industry: 'Global Mobility & Real-Time Logistics',
+    description: 'Pioneer in real-time geospatial dispatch, dynamic pricing, Uber Eats logistics, and ultra-high-throughput microservices.',
+    cultureSummary: 'Go get it, Trip obsessed, Build with heart, Stand for safety, and Great minds don\'t think alike.',
+    leadershipPrinciples: ['Customer First', 'See the Forest and the Trees', 'Build with Heart', 'Make Magic'],
+    techStack: ['Go', 'Java', 'Python', 'Kafka', 'H3 Geospatial Indexing', 'Cassandra', 'MySQL (Schemaless)', 'React Native'],
+    hiringLocations: ['San Francisco', 'Sunnyvale', 'Amsterdam', 'Bangalore', 'Hyderabad', 'Remote'],
+    research: {
+      overview: 'Focuses deeply on concurrency, real-time event streaming with Kafka, geospatial algorithms (H3 hex bins), and fault-tolerant microservice orchestration.',
+      lastChecked: new Date(),
+      cacheExpiresAt: new Date(Date.now() + RESEARCH_CACHE_TTL_MS),
+      interviewStages: [
+        { stageNumber: 1, name: 'Online Coding Challenge', roundType: 'Online Assessment', durationMinutes: 70, format: 'CodeSignal General Coding Framework', keyFocus: 'Data structures, math, speed, edge-cases' },
+        { stageNumber: 2, name: 'Technical Phone Screen', roundType: 'Technical Screen', durationMinutes: 60, format: 'Zoom + CoderPad', keyFocus: '1 LeetCode Hard or 2 Mediums + complexity derivation' },
+        { stageNumber: 3, name: 'Onsite Coding Round 1', roundType: 'DSA Coding Interview', durationMinutes: 60, format: 'Live pair programming', keyFocus: 'Graphs, BFS/Dijkstra, Concurrency locks' },
+        { stageNumber: 4, name: 'Onsite System Design (Geospatial & Dispatch)', roundType: 'System Design', durationMinutes: 60, format: 'Distributed architecture whiteboard', keyFocus: 'Driver-rider matching, surge pricing pipeline, Kafka idempotency' },
+        { stageNumber: 5, name: 'Onsite Behavioral & Cultural Fit', roundType: 'Behavioral Interview', durationMinutes: 45, format: 'STAR deep dive', keyFocus: 'High ownership, cross-functional impact, handling ambiguity' }
+      ],
+      reportedTopics: [
+        { category: 'DSA', topic: 'Geospatial Graphs & Dijkstra Shortest Path', frequency: 'High', exampleThemes: ['Routing with turn restrictions', 'Bus routes / transit network'] },
+        { category: 'System Design', topic: 'Real-Time Ride Dispatch & Location Tracking', frequency: 'Critical', exampleThemes: ['H3 Hexagonal spatial indexing', 'WebSocket location fan-out'] }
+      ],
+      sources: [
+        {
+          title: 'Uber Careers - Engineering Hiring Experience',
+          url: 'https://www.uber.com/us/en/careers/',
+          sourceType: 'OFFICIAL_CAREERS',
+          confidence: 100,
+          retrievalTimestamp: new Date()
+        },
+        {
+          title: 'Uber Engineering Blog',
+          url: 'https://www.uber.com/blog/engineering/',
+          sourceType: 'ENGINEERING_BLOG',
+          confidence: 97,
+          retrievalTimestamp: new Date()
+        }
+      ]
+    }
+  },
+  nvidia: {
+    name: 'NVIDIA',
+    slug: 'nvidia',
+    domain: 'nvidia.com',
+    industry: 'GPU Computing, Accelerated Hardware & AI Infrastructure',
+    description: 'Global titan powering modern AI computing through CUDA architectures, DGX supercomputers, TensorRT, and Omniverse.',
+    cultureSummary: 'Speed of Light execution, Intellectual Honesty, Innovation, Craftsmanship, and One Team.',
+    leadershipPrinciples: ['Speed of Light', 'Intellectual Honesty', 'Craftsmanship', 'High Excellence'],
+    techStack: ['C++', 'CUDA', 'Python', 'C', 'PyTorch', 'TensorRT', 'Triton Inference Server', 'Linux Systems'],
+    hiringLocations: ['Santa Clara', 'Austin', 'Redmond', 'Bangalore', 'Pune', 'Hsinchu', 'Remote'],
+    research: {
+      overview: 'Intense technical loops emphasizing low-level systems (memory alignment, cache coherence, SIMD/vectorization), operating systems internals, and GPU computing fundamentals.',
+      lastChecked: new Date(),
+      cacheExpiresAt: new Date(Date.now() + RESEARCH_CACHE_TTL_MS),
+      interviewStages: [
+        { stageNumber: 1, name: 'Technical Phone Screen', roundType: 'Technical Screen', durationMinutes: 60, format: 'Phone/Teams + Shared live terminal', keyFocus: 'C++ pointers, memory layout, bit manipulation' },
+        { stageNumber: 2, name: 'Onsite Round 1 (C++ & Systems Internals)', roundType: 'DSA Coding Interview', durationMinutes: 60, format: 'Deep systems coding', keyFocus: 'Multi-threading, mutexes, memory barriers, circular buffers' },
+        { stageNumber: 3, name: 'Onsite Round 2 (Algorithms & Data Structures)', roundType: 'DSA Coding Interview', durationMinutes: 60, format: 'Live algorithmic design', keyFocus: 'Trees, Graphs, Matrix multiply optimizations' },
+        { stageNumber: 4, name: 'Onsite Round 3 (System Architecture / Hardware-Software Co-design)', roundType: 'System Design', durationMinutes: 60, format: 'Systems whiteboard', keyFocus: 'Triton inference serving, high throughput PCIe data transfers' },
+        { stageNumber: 5, name: 'Hiring Manager & Team Alignment', roundType: 'Behavioral Interview', durationMinutes: 45, format: 'STAR & project cross-examination', keyFocus: 'Speed of Light engineering and technical grit' }
+      ],
+      reportedTopics: [
+        { category: 'DSA', topic: 'Bit Manipulation & Cache-Friendly Data Structures', frequency: 'High', exampleThemes: ['Fast inverse square root', 'Custom memory pool allocator'] },
+        { category: 'System Design', topic: 'Distributed AI Inference & Model Serving', frequency: 'High', exampleThemes: ['Dynamic batching in Triton', 'KV cache optimization in vLLM'] }
+      ],
+      sources: [
+        {
+          title: 'NVIDIA Careers - Life at NVIDIA',
+          url: 'https://www.nvidia.com/en-us/about-nvidia/careers/',
+          sourceType: 'OFFICIAL_CAREERS',
+          confidence: 100,
+          retrievalTimestamp: new Date()
+        },
+        {
+          title: 'NVIDIA Developer Technical Blog',
+          url: 'https://developer.nvidia.com/blog/',
+          sourceType: 'ENGINEERING_BLOG',
+          confidence: 98,
+          retrievalTimestamp: new Date()
+        }
+      ]
+    }
+  },
+  stripe: {
+    name: 'Stripe',
+    slug: 'stripe',
+    domain: 'stripe.com',
+    industry: 'Financial Infrastructure & Internet Payments',
+    description: 'Financial infrastructure engine powering internet commerce with five-nines availability, API elegance, and strict idempotent transaction guarantees.',
+    cultureSummary: 'Users first, Rigorous execution, Move with urgency, Think rigorously, and Macro optimism.',
+    leadershipPrinciples: ['Users First', 'Move with Urgency', 'Think Rigorously', 'Trust and Amplify'],
+    techStack: ['Ruby / Sorbet', 'Java', 'Go', 'JavaScript/TypeScript', 'Kafka', 'Redis', 'MongoDB', 'PostgreSQL'],
+    hiringLocations: ['San Francisco', 'Seattle', 'Dublin', 'Singapore', 'London', 'Remote'],
+    research: {
+      overview: 'Renowned for realistic engineering interviews: building real features in your favorite IDE, debugging broken microservices, and designing idempotent financial workflows.',
+      lastChecked: new Date(),
+      cacheExpiresAt: new Date(Date.now() + RESEARCH_CACHE_TTL_MS),
+      interviewStages: [
+        { stageNumber: 1, name: 'Technical Phone Screen (Practical Coding)', roundType: 'Practical Coding', durationMinutes: 60, format: 'Candidate own IDE / screen share', keyFocus: 'Parsing, data modeling, clean readable methods' },
+        { stageNumber: 2, name: 'Virtual Onsite Round 1 (Bug Squashing / Debugging)', roundType: 'Debugging Interview', durationMinutes: 60, format: 'Real codebase with failing unit tests', keyFocus: 'Reading stack traces, isolating root cause, writing regression test' },
+        { stageNumber: 3, name: 'Virtual Onsite Round 2 (Integration & API Design)', roundType: 'System Design', durationMinutes: 60, format: 'Designing idempotent REST/gRPC API', keyFocus: 'Idempotency keys, retry policies, double-spend prevention' },
+        { stageNumber: 4, name: 'Virtual Onsite Round 3 (System Architecture at Scale)', roundType: 'System Design', durationMinutes: 60, format: 'Distributed payments architecture', keyFocus: 'Two-phase commits vs Sagas, outbox pattern, reconciliation ledger' },
+        { stageNumber: 5, name: 'Culture & Collaboration (Manager)', roundType: 'Behavioral Interview', durationMinutes: 45, format: 'STAR conversation', keyFocus: 'API empathy, intellectual curiosity, user-first philosophy' }
+      ],
+      reportedTopics: [
+        { category: 'Practical Coding', topic: 'Idempotent Token Bucket & Ledger Balancing', frequency: 'Critical', exampleThemes: ['Rate limiter with credit carryover', 'Double-entry bookkeeping validation'] },
+        { category: 'System Design', topic: 'Idempotent Payment Processor & Webhook Delivery', frequency: 'Critical', exampleThemes: ['Guaranteed at-least-once webhook dispatch', 'Distributed lock for transaction settlement'] }
+      ],
+      sources: [
+        {
+          title: 'Stripe Engineering - The Stripe Interview Guide',
+          url: 'https://stripe.com/jobs/search',
+          sourceType: 'OFFICIAL_CAREERS',
+          confidence: 100,
+          retrievalTimestamp: new Date()
+        },
+        {
+          title: 'Stripe Engineering Blog & Open Source',
+          url: 'https://stripe.com/blog/engineering',
+          sourceType: 'ENGINEERING_BLOG',
+          confidence: 99,
+          retrievalTimestamp: new Date()
+        }
+      ]
+    }
   }
 };
 
@@ -273,7 +481,7 @@ Return ONLY a valid JSON object matching this schema:
 }`;
 
   try {
-    const raw = await queryGroq(prompt, "You are a Senior Technical Recruiter & Systems Architect. Return JSON only.");
+    const raw = await querySmartAI(prompt, "You are a Senior Technical Recruiter & Systems Architect. Return JSON only.");
     const parsed = cleanJson(raw);
     if (parsed && Array.isArray(parsed.interviewStages)) {
       return {
@@ -283,21 +491,7 @@ Return ONLY a valid JSON object matching this schema:
       };
     }
   } catch (err) {
-    console.warn(`[Research Service] Groq research failed for ${companyName}. Trying Gemini...`);
-  }
-
-  try {
-    const raw = await queryGemini(prompt);
-    const parsed = cleanJson(raw);
-    if (parsed && Array.isArray(parsed.interviewStages)) {
-      return {
-        ...parsed,
-        lastChecked: new Date(),
-        cacheExpiresAt: new Date(Date.now() + RESEARCH_CACHE_TTL_MS),
-      };
-    }
-  } catch (err) {
-    console.warn(`[Research Service] Gemini research failed for ${companyName}:`, err.message);
+    console.warn(`[Research Service] Smart AI research failed for ${companyName}, using domain fallback:`, err.message);
   }
 
   // Resilient fallback research object
