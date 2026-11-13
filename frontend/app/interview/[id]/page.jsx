@@ -326,6 +326,18 @@ export default function InterviewRoomPage({ params }) {
     }
   };
 
+  const handleFinishEarly = async () => {
+    if (!confirm('Are you ready to complete your interview session and generate your deep evaluation & rating report?')) return;
+    try {
+      setLoading(true);
+      await api.post(`/interview/${id}/finish`);
+      router.push(`/results/${id}`);
+    } catch (err) {
+      alert('Could not finish interview: ' + (err.response?.data?.message || err.message));
+      setLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <AppLayout>
@@ -375,7 +387,7 @@ export default function InterviewRoomPage({ params }) {
               title="Ask interviewer for scope/parameter clarification"
             >
               <HelpCircle className="h-3.5 w-3.5 text-brand-accent" />
-              <span>Clarification</span>
+              <span>Clarify</span>
             </button>
 
             <button
@@ -387,8 +399,17 @@ export default function InterviewRoomPage({ params }) {
               <span>Skip</span>
             </button>
 
+            <button
+              onClick={handleFinishEarly}
+              className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-system-success/15 border border-system-success/40 text-system-success hover:bg-system-success/25 text-xs font-semibold flex items-center gap-1.5"
+              title="Conclude interview and generate deep rating report"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              <span>Finish & Rate</span>
+            </button>
+
             <span className="text-xs text-brand-accent font-semibold px-2.5 sm:px-3 py-1 rounded-full bg-brand-purple/20 border border-brand-accent/30 shrink-0">
-              Turn {chat.filter(m => m.role === 'user').length + 1}
+              Q{Math.min(chat.filter(m => m.role === 'user').length + 1, interview.targetTurns || 5)} of {interview.targetTurns || 5}
             </span>
           </div>
         </div>

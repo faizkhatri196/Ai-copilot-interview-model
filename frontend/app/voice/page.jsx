@@ -29,10 +29,15 @@ export default function LiveVoiceInterviewPage() {
   const router = useRouter();
 
   // Interview Configuration
-  const [company, setCompany] = useState('Amazon');
-  const [role, setRole] = useState('Senior Software Engineer');
+  const [companySelect, setCompanySelect] = useState('Amazon');
+  const [customCompany, setCustomCompany] = useState('');
+  const [roleSelect, setRoleSelect] = useState('Senior Software Engineer');
+  const [customRole, setCustomRole] = useState('');
   const [roundType, setRoundType] = useState('System Design & Distributed Scalability');
   const [difficulty, setDifficulty] = useState('Senior');
+
+  const company = companySelect === 'Custom' ? (customCompany.trim() || 'Tech Enterprise') : companySelect;
+  const role = roleSelect === 'Custom' ? (customRole.trim() || 'Software Engineer') : roleSelect;
 
   // Session State
   const [isStarted, setIsStarted] = useState(false);
@@ -285,39 +290,46 @@ export default function LiveVoiceInterviewPage() {
 
         {/* Configuration Bar (When not started) */}
         {!isStarted && (
-          <div className="p-4 rounded-2xl bg-brand-card border border-border grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div>
-              <label className="text-[11px] font-bold text-content-muted block mb-1.5">Target Company</label>
-              <select
-                value={company}
-                onChange={(e) => setCompany(e.target.value)}
-                className="w-full bg-background-secondary border border-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-purple"
-              >
-                <option value="Google">Google</option>
-                <option value="Amazon">Amazon</option>
-                <option value="Meta">Meta</option>
-                <option value="Uber">Uber</option>
-                <option value="Netflix">Netflix</option>
-                <option value="Stripe">Stripe</option>
-                <option value="Microsoft">Microsoft</option>
-                <option value="Apple">Apple</option>
-              </select>
-            </div>
+          <div className="space-y-4">
+            <div className="p-4 rounded-2xl bg-brand-card border border-border grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label className="text-[11px] font-bold text-content-muted block mb-1.5">Target Company</label>
+                <select
+                  value={companySelect}
+                  onChange={(e) => setCompanySelect(e.target.value)}
+                  className="w-full bg-background-secondary border border-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-purple"
+                >
+                  <option value="Google">Google</option>
+                  <option value="Amazon">Amazon</option>
+                  <option value="Meta">Meta</option>
+                  <option value="OpenAI">OpenAI</option>
+                  <option value="Citadel">Citadel</option>
+                  <option value="Stripe">Stripe</option>
+                  <option value="Uber">Uber</option>
+                  <option value="Netflix">Netflix</option>
+                  <option value="Microsoft">Microsoft</option>
+                  <option value="Apple">Apple</option>
+                  <option value="Custom">Custom Company...</option>
+                </select>
+              </div>
 
-            <div>
-              <label className="text-[11px] font-bold text-content-muted block mb-1.5">Target Role</label>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                className="w-full bg-background-secondary border border-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-purple"
-              >
-                <option value="Senior Software Engineer">Senior Software Engineer</option>
-                <option value="Full Stack Developer">Full Stack Developer</option>
-                <option value="Distributed Systems Engineer">Distributed Systems Engineer</option>
-                <option value="AI / Generative AI Engineer">AI / Generative AI Engineer</option>
-                <option value="DevOps & Cloud Architect">DevOps & Cloud Architect</option>
-              </select>
-            </div>
+              <div>
+                <label className="text-[11px] font-bold text-content-muted block mb-1.5">Target Role</label>
+                <select
+                  value={roleSelect}
+                  onChange={(e) => setRoleSelect(e.target.value)}
+                  className="w-full bg-background-secondary border border-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-purple"
+                >
+                  <option value="Senior Software Engineer">Senior Software Engineer</option>
+                  <option value="Full Stack Developer">Full Stack Developer</option>
+                  <option value="Distributed Systems Engineer">Distributed Systems Engineer</option>
+                  <option value="Backend Engineer">Backend Engineer</option>
+                  <option value="Frontend Engineer">Frontend Engineer</option>
+                  <option value="AI / Generative AI Engineer">AI / Generative AI Engineer</option>
+                  <option value="DevOps & Cloud Architect">DevOps & Cloud Architect</option>
+                  <option value="Custom">Custom Role...</option>
+                </select>
+              </div>
 
             <div>
               <label className="text-[11px] font-bold text-content-muted block mb-1.5">Interview Round</label>
@@ -347,7 +359,37 @@ export default function LiveVoiceInterviewPage() {
               </select>
             </div>
           </div>
-        )}
+
+          {(companySelect === 'Custom' || roleSelect === 'Custom') && (
+            <div className="p-4 rounded-2xl bg-brand-card border border-border grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {companySelect === 'Custom' && (
+                <div>
+                  <label className="text-[11px] font-bold text-brand-accent block mb-1.5">Custom Company Name</label>
+                  <input
+                    type="text"
+                    value={customCompany}
+                    onChange={(e) => setCustomCompany(e.target.value)}
+                    placeholder="e.g. OpenAI, Citadel, Palantir, Datadog..."
+                    className="w-full bg-background-secondary border border-brand-accent/50 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-purple"
+                  />
+                </div>
+              )}
+              {roleSelect === 'Custom' && (
+                <div>
+                  <label className="text-[11px] font-bold text-brand-accent block mb-1.5">Custom Role Title</label>
+                  <input
+                    type="text"
+                    value={customRole}
+                    onChange={(e) => setCustomRole(e.target.value)}
+                    placeholder="e.g. Lead Systems Architect, MLOps Engineer, Core Dev..."
+                    className="w-full bg-background-secondary border border-brand-accent/50 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-purple"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
         {/* Voice Stage Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-[calc(100vh-250px)]">

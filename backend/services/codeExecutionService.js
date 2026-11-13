@@ -119,9 +119,19 @@ const runIsolatedJavaScript = async ({ code, testCases, slug, timeLimitMs = 2500
               out = flattenObject(inp);
             } else if (slug === 'two-sum') {
               out = twoSum(inp.nums, inp.target);
+            } else if (slug === 'sliding-window-maximum') {
+              out = typeof maxSlidingWindow === 'function' ? maxSlidingWindow(inp.nums, inp.k) : (typeof solution === 'function' ? solution(inp.nums, inp.k) : null);
+            } else if (slug === 'course-schedule') {
+              out = typeof canFinish === 'function' ? canFinish(inp.numCourses, inp.prerequisites) : (typeof solution === 'function' ? solution(inp.numCourses, inp.prerequisites) : null);
+            } else if (slug === 'optimal-task-scheduler') {
+              out = typeof leastInterval === 'function' ? leastInterval(inp.tasks, inp.n) : (typeof solution === 'function' ? solution(inp.tasks, inp.n) : null);
+            } else if (slug === 'binary-tree-maximum-path-sum') {
+              out = typeof maxPathSum === 'function' ? maxPathSum(inp.tree) : (typeof solution === 'function' ? solution(inp.tree) : null);
             } else {
               if (typeof solution === 'function') {
-                out = solution(inp);
+                out = (inp && typeof inp === 'object' && !Array.isArray(inp) && Object.keys(inp).length > 1)
+                  ? solution(...Object.values(inp))
+                  : solution(inp);
               } else if (typeof execute === 'function') {
                 out = execute(inp);
               }
@@ -184,7 +194,7 @@ const runIsolatedJavaScript = async ({ code, testCases, slug, timeLimitMs = 2500
               passed: false,
               isHidden: tc.isHidden,
               input: tc.isHidden ? '[HIDDEN TEST CASE]' : tc.input,
-              expected: tc.isHidden ? '[HIDDEN TEST CASE]' : tc.expectedOutput,
+              expected: '[REDACTED]',
               actual: '[TIME_LIMIT_EXCEEDED]'
             })),
             feedback: 'Time limit exceeded. Optimize algorithmic complexity (avoid infinite loops and unbounded recursion).'
@@ -205,7 +215,7 @@ const runIsolatedJavaScript = async ({ code, testCases, slug, timeLimitMs = 2500
               passed: false,
               isHidden: tc.isHidden,
               input: tc.isHidden ? '[HIDDEN TEST CASE]' : tc.input,
-              expected: tc.isHidden ? '[HIDDEN TEST CASE]' : tc.expectedOutput,
+              expected: '[REDACTED]',
               actual: '[RUNTIME_ERROR]'
             })),
             feedback: `Execution halted: ${stderrData.slice(0, 150)}`
@@ -224,8 +234,8 @@ const runIsolatedJavaScript = async ({ code, testCases, slug, timeLimitMs = 2500
               passed: isPassed,
               isHidden: tc.isHidden,
               input: tc.isHidden ? '[HIDDEN TEST CASE]' : tc.input,
-              expected: tc.isHidden ? '[HIDDEN TEST CASE]' : tc.expectedOutput,
-              actual: tc.isHidden ? (isPassed ? '[PASSED]' : '[FAILED]') : (res.success ? res.output : `[ERROR: ${res.error}]`)
+              expected: isPassed ? '[VALIDATED]' : '[REDACTED: Output requirement mismatch]',
+              actual: tc.isHidden ? (isPassed ? '[PASSED]' : '[FAILED]') : (res.success ? (isPassed ? '[PASSED]' : `[OUTPUT MISMATCH: ${typeof res.output === 'string' ? res.output.slice(0, 60) : 'returned value'}]`) : `[ERROR: ${res.error}]`)
             });
           });
 
@@ -339,9 +349,20 @@ def main():
                 out = flatten_object(inp)
             elif slug == "two-sum":
                 out = two_sum(inp["nums"], inp["target"])
+            elif slug == "sliding-window-maximum":
+                out = max_sliding_window(inp["nums"], inp["k"]) if 'max_sliding_window' in globals() else (solution(inp["nums"], inp["k"]) if 'solution' in globals() else None)
+            elif slug == "course-schedule":
+                out = can_finish(inp["numCourses"], inp["prerequisites"]) if 'can_finish' in globals() else (solution(inp["numCourses"], inp["prerequisites"]) if 'solution' in globals() else None)
+            elif slug == "optimal-task-scheduler":
+                out = least_interval(inp["tasks"], inp["n"]) if 'least_interval' in globals() else (solution(inp["tasks"], inp["n"]) if 'solution' in globals() else None)
+            elif slug == "binary-tree-maximum-path-sum":
+                out = max_path_sum(inp["tree"]) if 'max_path_sum' in globals() else (solution(inp["tree"]) if 'solution' in globals() else None)
             else:
                 if 'solution' in globals():
-                    out = solution(inp)
+                    if isinstance(inp, dict) and len(inp) > 1:
+                        out = solution(*inp.values())
+                    else:
+                        out = solution(inp)
                 else:
                     out = None
             results.append({"success": True, "output": json.dumps(out, separators=(',', ':'))})
@@ -417,7 +438,7 @@ if __name__ == '__main__':
               passed: false,
               isHidden: tc.isHidden,
               input: tc.isHidden ? '[HIDDEN TEST CASE]' : tc.input,
-              expected: tc.isHidden ? '[HIDDEN TEST CASE]' : tc.expectedOutput,
+              expected: '[REDACTED]',
               actual: '[PYTHON_RUNTIME_ERROR]'
             })),
             feedback: `Python execution failed: ${errorOutput.slice(0, 150)}`
@@ -441,8 +462,8 @@ if __name__ == '__main__':
               passed: isPassed,
               isHidden: tc.isHidden,
               input: tc.isHidden ? '[HIDDEN TEST CASE]' : tc.input,
-              expected: tc.isHidden ? '[HIDDEN TEST CASE]' : tc.expectedOutput,
-              actual: tc.isHidden ? (isPassed ? '[PASSED]' : '[FAILED]') : (res.success ? res.output : `[ERROR: ${res.error}]`)
+              expected: isPassed ? '[VALIDATED]' : '[REDACTED: Output requirement mismatch]',
+              actual: tc.isHidden ? (isPassed ? '[PASSED]' : '[FAILED]') : (res.success ? (isPassed ? '[PASSED]' : `[OUTPUT MISMATCH: ${typeof res.output === 'string' ? res.output.slice(0, 60) : 'returned value'}]`) : `[ERROR: ${res.error}]`)
             });
           });
 

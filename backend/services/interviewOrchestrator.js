@@ -122,7 +122,7 @@ export const initializeAdaptiveInterview = async ({
   difficulty = 'Senior',
   roundType = 'Technical Fundamentals',
   interviewerPersonality = 'Professional',
-  targetTurns = 10
+  targetTurns = 5
 }) => {
   const sessionId = 'ses_' + crypto.randomBytes(8).toString('hex');
 
@@ -413,9 +413,9 @@ export const processCandidateTurn = async ({
     ])).slice(-5);
   }
 
-  // Determine Next Action based on configurable target turns (defaults to 10 consecutive turns)
+  // Determine Next Action based on configurable target turns (defaults to 5 consecutive turns)
   const totalAnswers = interview.answers.length;
-  const targetDepth = interview.targetTurns || interview.targetQuestions || 10;
+  const targetDepth = interview.targetTurns || interview.targetQuestions || 5;
   const isTargetDepthReached = totalAnswers >= targetDepth;
 
   let nextQuestion = null;
@@ -478,6 +478,36 @@ export const processCandidateTurn = async ({
     isCompleted: interview.status === 'Completed',
     currentState: interview.currentState,
   };
+};
+
+/**
+ * Manually conclude an interview session and compute final ratings
+ */
+export const finalizeInterview = async ({ interviewId, candidateId }) => {
+  const interview = await getInterviewWithOwnerCheck(interviewId, candidateId);
+
+  recordState(interview, 'COMPLETED', 'MANUAL_FINISH_REQUESTED');
+  interview.status = 'Completed';
+
+  const totalAnswers = interview.answers.length;
+  const totalScore = totalAnswers > 0
+    ? interview.answers.reduce((acc, curr) => acc + (curr.evaluation?.score || 0), 0)
+    : 80;
+  const avgScore = totalAnswers > 0 ? Math.round(totalScore / totalAnswers) : 80;
+  interview.finalScore = avgScore;
+
+  interview.overallFeedback = `Simulation concluded across ${totalAnswers} turns for ${interview.role} at ${interview.company}. Overall technical readiness rating: ${avgScore}/100. Evaluated against ${interview.company} engineering standards.`;
+
+  interview.dimensionScores = {
+    technicalCorrectness: avgScore >= 80 ? Math.min(100, avgScore + 3) : avgScore,
+    problemSolving: avgScore,
+    communication: Math.min(95, avgScore + 4),
+    depthAndReasoning: Math.max(60, avgScore - 3),
+    codeQuality: avgScore
+  };
+
+  await saveInterview(interview);
+  return interview;
 };
 
 /**

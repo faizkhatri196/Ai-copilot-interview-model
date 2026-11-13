@@ -9,7 +9,8 @@ import {
   getInterviewWithOwnerCheck,
   requestClarification,
   skipQuestion,
-  toggleInterviewPause
+  toggleInterviewPause,
+  finalizeInterview
 } from '../services/interviewOrchestrator.js';
 
 export const createInterview = async (req, res) => {
@@ -21,7 +22,7 @@ export const createInterview = async (req, res) => {
       company = 'General Tech',
       roundType = 'Technical Fundamentals',
       interviewerPersonality = 'Professional',
-      targetTurns = 10
+      targetTurns = 5
     } = req.body;
 
     const interview = await initializeAdaptiveInterview({
@@ -187,5 +188,16 @@ export const handleVoiceTurn = async (req, res) => {
     res.json(turn);
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+export const handleFinishInterview = async (req, res) => {
+  try {
+    const interviewId = req.params.id;
+    const candidateId = req.user._id || req.user.id;
+    const interview = await finalizeInterview({ interviewId, candidateId });
+    res.json({ message: 'Interview concluded successfully', interview, isCompleted: true });
+  } catch (error) {
+    res.status(error.status || 500).json({ message: error.message });
   }
 };

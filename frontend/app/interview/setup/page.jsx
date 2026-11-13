@@ -15,7 +15,9 @@ import {
   Code2,
   Mic,
   Users2,
-  BrainCircuit
+  BrainCircuit,
+  Clock,
+  Target
 } from 'lucide-react';
 import api from '../../../lib/axios';
 import AppLayout from '../../../components/AppLayout';
@@ -24,8 +26,8 @@ const ROUND_TYPES = [
   { id: 'Technical Fundamentals', title: 'Technical Fundamentals', desc: 'Core CS, OS, DBMS, Networks, OOP & Language deep dive', icon: Cpu, badge: 'Round 3' },
   { id: 'DSA Coding Interview', title: 'DSA Coding Interview', desc: 'Live algorithmic problem solving in isolated code editor', icon: Code2, badge: 'Round 2' },
   { id: 'System Design', title: 'System Design & High Scale', desc: 'Architecture, microservices, databases, caching & queues', icon: Layers, badge: 'Round 6' },
-  { id: 'Company-Specific Interview', title: 'Company-Specific Interview', desc: 'Tailored to Amazon, Google, Meta bar-raiser standards', icon: Building2, badge: 'Round 5' },
-  { id: 'Resume-Based Interview', title: 'Resume-Based Interview', desc: 'Probing questions based on your uploaded projects', icon: BrainCircuit, badge: 'Round 4' },
+  { id: 'Company-Specific Interview', title: 'Company-Specific Interview', desc: 'Tailored to Amazon, Google, Meta, or any custom target', icon: Building2, badge: 'Round 5' },
+  { id: 'Resume-Based Interview', title: 'Resume-Based Interview', desc: 'Probing questions based on your uploaded projects & stack', icon: BrainCircuit, badge: 'Round 4' },
   { id: 'Behavioral Interview', title: 'Behavioral & Leadership', desc: 'STAR method questions on ownership, collaboration & conflict', icon: Users2, badge: 'Round 7' },
   { id: 'HR Interview', title: 'HR & Culture Fit', desc: 'Career motivations, salary expectations, company values', icon: Users2, badge: 'Round 8' },
   { id: 'AI Voice Interview', title: 'Live Voice-to-Voice', desc: 'Real-time conversational speech interview simulation', icon: Mic, badge: 'Round 9' },
@@ -43,19 +45,38 @@ function InterviewSetupContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [role, setRole] = useState('Full Stack Developer');
-  const [company, setCompany] = useState('Amazon');
+  const [roleSelect, setRoleSelect] = useState('Full Stack Developer');
+  const [customRole, setCustomRole] = useState('');
+  const [companySelect, setCompanySelect] = useState('Amazon');
+  const [customCompany, setCustomCompany] = useState('');
   const [roundType, setRoundType] = useState('Technical Fundamentals');
   const [difficulty, setDifficulty] = useState('Intermediate');
   const [personality, setPersonality] = useState('Professional');
+  const [targetTurns, setTargetTurns] = useState(5);
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     const queryCompany = searchParams?.get('company');
     const queryRound = searchParams?.get('round');
-    if (queryCompany) setCompany(queryCompany);
+    if (queryCompany) {
+      const known = ['Amazon', 'Google', 'Microsoft', 'Meta', 'Uber', 'Netflix', 'Apple', 'Atlassian', 'Salesforce', 'OpenAI', 'Citadel', 'Stripe'];
+      if (known.includes(queryCompany)) {
+        setCompanySelect(queryCompany);
+      } else {
+        setCompanySelect('Custom');
+        setCustomCompany(queryCompany);
+      }
+    }
     if (queryRound) setRoundType(queryRound);
   }, [searchParams]);
+
+  const effectiveCompany = companySelect === 'Custom'
+    ? (customCompany.trim() || 'Tech Enterprise')
+    : companySelect;
+
+  const effectiveRole = roleSelect === 'Custom'
+    ? (customRole.trim() || 'Software Engineer')
+    : roleSelect;
 
   const handleLaunch = async (e) => {
     e.preventDefault();
@@ -72,11 +93,12 @@ function InterviewSetupContent() {
       }
 
       const { data } = await api.post('/interview/create', {
-        role,
-        company,
+        role: effectiveRole,
+        company: effectiveCompany,
         difficulty,
         roundType,
         interviewerPersonality: personality,
+        targetTurns: Number(targetTurns) || 5
       });
 
       router.push(`/interview/${data._id}`);
@@ -95,7 +117,7 @@ function InterviewSetupContent() {
         </div>
         <h1 className="text-2xl sm:text-3xl font-black text-white">Configure Interview Simulation</h1>
         <p className="text-xs sm:text-sm text-content-secondary mt-1">
-          Customize target organization, role seniority, specific round type, and interviewer persona.
+          Prepare for any company and role worldwide with configurable interview lengths, specific round rubrics, and targeted personas.
         </p>
       </div>
 
@@ -138,50 +160,54 @@ function InterviewSetupContent() {
           </div>
         </div>
 
-        {/* Section 2: Role, Company & Difficulty */}
+        {/* Section 2: Role, Company, Length & Difficulty */}
         <div className="p-6 rounded-3xl bg-brand-card border border-border space-y-4">
           <h2 className="text-base font-bold text-white flex items-center gap-2">
             <Briefcase className="h-4 w-4 text-brand-purple" />
-            2. Target Position, Company & Difficulty Level
+            2. Target Company, Position & Session Depth
           </h2>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-content-secondary mb-2">Target Position</label>
+              <label className="block text-xs font-semibold text-content-secondary mb-2">Target Company</label>
               <select
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                className="w-full bg-background-secondary border border-border rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-brand-purple"
+                value={companySelect}
+                onChange={(e) => setCompanySelect(e.target.value)}
+                className="w-full bg-background-secondary border border-border rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-purple"
               >
-                <option>Full Stack Developer</option>
-                <option>SDE Intern</option>
-                <option>SDE 1 (Entry Software Engineer)</option>
-                <option>SDE 2 (Mid-Level Engineer)</option>
-                <option>Senior Software Engineer</option>
-                <option>Frontend Engineer</option>
-                <option>Backend Engineer</option>
-                <option>AI / Generative AI Engineer</option>
-                <option>DevOps & Cloud Engineer</option>
+                <option value="Google">Google</option>
+                <option value="Amazon">Amazon</option>
+                <option value="Microsoft">Microsoft</option>
+                <option value="Meta">Meta</option>
+                <option value="OpenAI">OpenAI</option>
+                <option value="Citadel">Citadel</option>
+                <option value="Stripe">Stripe</option>
+                <option value="Netflix">Netflix</option>
+                <option value="Uber">Uber</option>
+                <option value="Apple">Apple</option>
+                <option value="Atlassian">Atlassian</option>
+                <option value="Salesforce">Salesforce</option>
+                <option value="Custom">Custom Company (Any)...</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-content-secondary mb-2">Target Company Standards</label>
+              <label className="block text-xs font-semibold text-content-secondary mb-2">Target Position</label>
               <select
-                value={company}
-                onChange={(e) => setCompany(e.target.value)}
-                className="w-full bg-background-secondary border border-border rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-brand-purple"
+                value={roleSelect}
+                onChange={(e) => setRoleSelect(e.target.value)}
+                className="w-full bg-background-secondary border border-border rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-purple"
               >
-                <option>Amazon</option>
-                <option>Google</option>
-                <option>Microsoft</option>
-                <option>Meta</option>
-                <option>Uber</option>
-                <option>Netflix</option>
-                <option>Apple</option>
-                <option>Atlassian</option>
-                <option>Salesforce</option>
-                <option>High-Growth Startup</option>
+                <option value="Full Stack Developer">Full Stack Developer</option>
+                <option value="SDE 1 (Entry Software Engineer)">SDE 1 (Entry Software Engineer)</option>
+                <option value="SDE 2 (Mid-Level Engineer)">SDE 2 (Mid-Level Engineer)</option>
+                <option value="Senior Software Engineer">Senior Software Engineer</option>
+                <option value="Frontend Engineer">Frontend Engineer</option>
+                <option value="Backend Engineer">Backend Engineer</option>
+                <option value="Distributed Systems Engineer">Distributed Systems Engineer</option>
+                <option value="AI / Generative AI Engineer">AI / Generative AI Engineer</option>
+                <option value="DevOps & Cloud Architect">DevOps & Cloud Architect</option>
+                <option value="Custom">Custom Role (Any)...</option>
               </select>
             </div>
 
@@ -190,14 +216,59 @@ function InterviewSetupContent() {
               <select
                 value={difficulty}
                 onChange={(e) => setDifficulty(e.target.value)}
-                className="w-full bg-background-secondary border border-border rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-brand-purple"
+                className="w-full bg-background-secondary border border-border rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-purple"
               >
-                <option>Beginner</option>
-                <option>Intermediate</option>
-                <option>Advanced</option>
+                <option value="Beginner">Beginner (L3 / Intern)</option>
+                <option value="Intermediate">Intermediate (L4 / SDE 2)</option>
+                <option value="Advanced">Advanced (L5 / Senior)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-content-secondary mb-2">Interview Length</label>
+              <select
+                value={targetTurns}
+                onChange={(e) => setTargetTurns(Number(e.target.value))}
+                className="w-full bg-background-secondary border border-border rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-purple"
+              >
+                <option value={3}>3 Questions (Quick ~10 mins)</option>
+                <option value={5}>5 Questions (Standard ~20 mins)</option>
+                <option value={8}>8 Questions (Deep ~35 mins)</option>
               </select>
             </div>
           </div>
+
+          {/* Conditional Custom Input Fields */}
+          {(companySelect === 'Custom' || roleSelect === 'Custom') && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+              {companySelect === 'Custom' && (
+                <div>
+                  <label className="block text-xs font-semibold text-brand-accent mb-1.5">Enter Target Company Name</label>
+                  <input
+                    type="text"
+                    value={customCompany}
+                    onChange={(e) => setCustomCompany(e.target.value)}
+                    placeholder="e.g. Palantir, Datadog, Snowflake, Early Stage AI Startup..."
+                    className="w-full bg-background-secondary border border-brand-accent/50 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-brand-purple"
+                    required
+                  />
+                </div>
+              )}
+              {roleSelect === 'Custom' && (
+                <div>
+                  <label className="block text-xs font-semibold text-brand-accent mb-1.5">Enter Target Role Title</label>
+                  <input
+                    type="text"
+                    value={customRole}
+                    onChange={(e) => setCustomRole(e.target.value)}
+                    placeholder="e.g. Lead Systems Architect, MLOps Engineer, Rust Core Dev..."
+                    className="w-full bg-background-secondary border border-brand-accent/50 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-brand-purple"
+                    required
+                  />
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Section 3: Interviewer Persona */}
@@ -227,16 +298,16 @@ function InterviewSetupContent() {
         </div>
 
         {/* Action Launch Bar */}
-        <div className="flex items-center justify-between pt-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl bg-brand-card border border-border">
           <div className="text-xs text-content-secondary">
             Simulating <span className="font-bold text-white">{roundType}</span> for{' '}
-            <span className="font-bold text-brand-accent">{company}</span> ({role})
+            <span className="font-bold text-brand-accent">{effectiveCompany}</span> ({effectiveRole}) • {targetTurns} Turns
           </div>
 
           <button
             type="submit"
             disabled={creating}
-            className="px-8 py-3.5 rounded-xl bg-purple-gradient text-white text-xs font-bold shadow-purple-glow hover:opacity-95 transition-all flex items-center gap-2 disabled:opacity-50"
+            className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-purple-gradient text-white text-xs font-bold shadow-purple-glow hover:opacity-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
           >
             {creating ? (
               <Loader2 className="h-4 w-4 animate-spin" />
