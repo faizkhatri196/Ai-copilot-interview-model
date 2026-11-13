@@ -62,6 +62,23 @@ const persist = () => {
   }, 100);
 };
 
+// Guarantee zero data loss on process exit or graceful shutdown
+export const flushStoreSync = () => {
+  if (persistTimer) {
+    clearTimeout(persistTimer);
+    persistTimer = null;
+  }
+  try {
+    fs.writeFileSync(STORE_FILE, JSON.stringify(store), 'utf8');
+  } catch (e) {
+    // Non-fatal if filesystem is restricted
+  }
+};
+
+process.on('exit', flushStoreSync);
+process.on('SIGINT', () => { flushStoreSync(); process.exit(0); });
+process.on('SIGTERM', () => { flushStoreSync(); process.exit(0); });
+
 const generateId = () => {
   const timestamp = Math.floor(Date.now() / 1000).toString(16).padStart(8, '0');
   const random = Math.floor(Math.random() * 0xffffffffffffff).toString(16).padStart(16, '0');

@@ -21,6 +21,45 @@ if (geminiKey) {
 let groqDisabled = false;
 let groqDisabledReason = '';
 
+// Live AI telemetry & provider health tracking
+const aiMetrics = {
+  totalCalls: 0,
+  succeededCalls: 0,
+  fallbackCalls: 0,
+  geminiCalls: 0,
+  groqCalls: 0,
+  totalLatencyMs: 0,
+  lastError: null,
+};
+
+export const getAIProviderStatus = () => {
+  return {
+    providers: {
+      groq: {
+        configured: Boolean(process.env.GROQ_API_KEY),
+        active: !groqDisabled,
+        status: groqDisabled ? 'CIRCUIT_BREAKER_ACTIVE' : (process.env.GROQ_API_KEY ? 'READY' : 'UNCONFIGURED'),
+        reason: groqDisabledReason || null,
+        models: ['llama-3.3-70b-versatile']
+      },
+      gemini: {
+        configured: Boolean(geminiKey),
+        active: Boolean(geminiClient),
+        status: geminiClient ? 'ONLINE' : 'UNCONFIGURED',
+        primaryModel: 'gemini-2.5-flash',
+        fallbackModel: 'gemini-3.8-flash'
+      }
+    },
+    metrics: {
+      totalCalls: aiMetrics.totalCalls,
+      succeededCalls: aiMetrics.succeededCalls,
+      fallbackCalls: aiMetrics.fallbackCalls,
+      averageLatencyMs: aiMetrics.totalCalls > 0 ? Math.round(aiMetrics.totalLatencyMs / aiMetrics.totalCalls) : 0,
+      lastError: aiMetrics.lastError
+    }
+  };
+};
+
 /**
  * Resilient query to Groq API with automatic model failover & circuit breaker
  */
@@ -90,7 +129,7 @@ export const queryGroq = async (prompt, systemMessage = "You are an expert techn
  */
 export const queryGemini = async (prompt) => {
   if (!geminiClient) throw new Error("Gemini client not configured");
-  const models = ['gemini-2.5-flash', 'gemini-1.5-flash'];
+  const models = ['gemini-2.5-flash', 'gemini-3.8-flash'];
   let lastErr = null;
 
   for (const model of models) {
@@ -111,19 +150,37 @@ export const queryGemini = async (prompt) => {
  * Universal Smart AI Router: Tiered routing selecting active, lowest-latency provider
  */
 export const querySmartAI = async (prompt, systemMessage = "You are an expert technical interviewer.") => {
+  const callStart = Date.now();
+  aiMetrics.totalCalls += 1;
+
   // If Groq is not disabled, try fast inference; otherwise run ultra-fast Gemini directly
   if (!groqDisabled && process.env.GROQ_API_KEY) {
     try {
-      return await queryGroq(prompt, systemMessage);
+      const result = await queryGroq(prompt, systemMessage);
+      aiMetrics.succeededCalls += 1;
+      aiMetrics.groqCalls += 1;
+      aiMetrics.totalLatencyMs += (Date.now() - callStart);
+      return result;
     } catch (groqErr) {
       // Graceful instant failover to Gemini
     }
   }
 
   if (geminiClient) {
-    return await queryGemini(prompt);
+    try {
+      const result = await queryGemini(prompt);
+      aiMetrics.succeededCalls += 1;
+      aiMetrics.geminiCalls += 1;
+      aiMetrics.totalLatencyMs += (Date.now() - callStart);
+      return result;
+    } catch (geminiErr) {
+      aiMetrics.lastError = geminiErr.message;
+      aiMetrics.fallbackCalls += 1;
+      throw geminiErr;
+    }
   }
 
+  aiMetrics.fallbackCalls += 1;
   throw new Error("No operational AI provider available.");
 };
 

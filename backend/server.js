@@ -3,6 +3,8 @@ import http from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { isDbConnected } from './config/db.js';
+import { getAIProviderStatus } from './services/aiService.js';
 import connectDB from './config/db.js';
 
 import authRoutes from './routes/authRoutes.js';
@@ -64,6 +66,33 @@ app.get('/health/metrics', (req, res) => {
     status: 'healthy',
     uptimeSeconds: Math.floor((Date.now() - serverStartTime) / 1000),
     totalRequestsHandled,
+    memory: {
+      rssMb: Math.round(memory.rss / 1024 / 1024),
+      heapTotalMb: Math.round(memory.heapTotal / 1024 / 1024),
+      heapUsedMb: Math.round(memory.heapUsed / 1024 / 1024),
+    },
+    activeSockets: io.engine.clientsCount || 0,
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/api/monitoring/ai-status', (req, res) => {
+  res.json(getAIProviderStatus());
+});
+
+app.get('/api/monitoring/dashboard', (req, res) => {
+  const memory = process.memoryUsage();
+  res.json({
+    status: 'healthy',
+    platform: 'AI Interview Intelligence',
+    version: '2.2.0-production',
+    uptimeSeconds: Math.floor((Date.now() - serverStartTime) / 1000),
+    totalRequestsHandled,
+    database: {
+      status: isDbConnected() ? 'CONNECTED_ATLAS' : 'PERSISTENT_HIGH_SPEED_FALLBACK',
+      type: isDbConnected() ? 'MongoDB' : 'FileBackedStore'
+    },
+    aiTelemetry: getAIProviderStatus(),
     memory: {
       rssMb: Math.round(memory.rss / 1024 / 1024),
       heapTotalMb: Math.round(memory.heapTotal / 1024 / 1024),

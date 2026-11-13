@@ -364,7 +364,8 @@ export const runCodeSubmission = async (req, res) => {
       return res.status(404).json({ message: 'Challenge not found' });
     }
 
-    // Execute against full test suite (public + hidden) in isolated VM
+    // Execute against full test suite (public + hidden) in isolated runner with quota checks
+    const userId = req.user?._id || req.user?.id || 'anonymous';
     const result = await runIsolatedCode({
       code,
       language: language || 'javascript',
@@ -374,7 +375,12 @@ export const runCodeSubmission = async (req, res) => {
       ],
       slug,
       timeLimitMs: challenge.timeLimitMs || 2500,
+      userId
     });
+
+    if (result.status === 'Quota Exceeded') {
+      return res.status(429).json(result);
+    }
 
     res.json(result);
   } catch (error) {
